@@ -1,0 +1,50 @@
+const STATUS: Record<string, number> = {
+  INVALID_CREDENTIALS: 401,
+  HMAC_INVALID: 401,
+  HMAC_EXPIRED: 401,
+  HMAC_NONCE_REUSED: 401,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  PARTNER_SCOPE: 403,
+  NOT_ATTACHED: 403,
+  INVALID_AMOUNT: 400,
+  INVALID_ITEM: 400,
+  UNKNOWN_CATEGORY: 400,
+  BAD_CUTOFF: 400,
+  CATEGORY_INACTIVE: 409,
+  BATCH_CLOSED: 409,
+  PARTNER_INACTIVE: 409,
+  USER_INACTIVE: 409,
+  INSUFFICIENT_BALANCE: 409,
+  WALLET_BUSY: 409,
+  ORDER_CANCELLED: 409,
+  PARTNER_IN_USE: 409,
+  CONFLICT: 409,
+  CUTOFF_PASSED: 422,
+  UNBALANCED_LEDGER: 500,
+  RESERVE_FAILED: 500,
+  VAULT_MISMATCH: 500,
+  RATE_LIMITED: 429,
+};
+
+export class DomainError extends Error {
+  readonly status: number;
+
+  constructor(readonly code: string) {
+    super(code);
+    this.name = 'DomainError';
+    this.status = STATUS[code] ?? 400;
+  }
+}
+
+export function asDomainError(error: unknown): DomainError | null {
+  if (error instanceof DomainError) {
+    return error;
+  }
+  if (error instanceof Error && error.message in STATUS) {
+    return new DomainError(error.message);
+  }
+  return null;
+}
+
+export const KNOWN_ERROR_CODES = Object.keys(STATUS);

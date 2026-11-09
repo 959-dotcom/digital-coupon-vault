@@ -1,0 +1,162 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  MASTER_PARTNER
+  PARTNER
+  MEMBER
+}
+
+enum DistributionMode {
+  COMMISSION_ONLY
+  FULL_PASS
+  SPLIT_KEEP
+}
+
+enum TxStatus {
+  PENDING
+  CONFIRMED
+  SETTLED
+  CANCELLED_SYSTEM
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  REVENUE
+  EXPENSE
+}
+
+model Partner {
+  id               String             @id @default(uuid())
+  code             String             @unique
+  name             String
+  parentId         String?
+  parent           Partner?           @relation("Downline", fields: [parentId], references: [id])
+  children         Partner[]          @relation("Downline")
+  /// PostgreSQL ltree. The migration casts this column and adds a GiST index.
+  path             String             @unique
+  distributionMode DistributionMode
+  /// Category code to decimal rate string, for example { "D2": "0.1000" }.
+  commissionRates  Json
+  isActive         Boolean            @default(true)
+  users            User[]
+  transactions     CouponTx[]
+  commissions      CommissionRecord[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([parentId])
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  displayName  String
+  role         Role
+  partnerId    String?
+  partner      Partner?   @relation(fields: [partnerId], references: [id])
+  isActive     Boolean    @default(true)
+  transactions CouponTx[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([partnerId])
+}
+
+model CouponCategory {
+  id            String        @id @default(uuid())
+  code          String        @unique
+  name          String
+  description   String
+  /// Wall-clock cutoff in Asia/Bangkok, HH:mm:ss. Compared with the server clock only.
+  cutoffTime    String
+  isActive      Boolean       @default(true)
+  gridMin       Int
+  gridMax       Int
+  pad           Int
+  stakeAmounts  Json
+  batches       CouponBatch[]
+  transactions  CouponTx[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model CouponBatch {
+  id           String         @id @default(uuid())
+  categoryId   String
+  category     CouponCategory @relation(fields: [categoryId], references: [id])
+  batchDate    DateTime       @db.Date
+  label        String
+  isOpen       Boolean        @default(true)
+  transactions CouponTx[]
+  createdAt    DateTime       @default(now())
+
+  @@unique([categoryId, batchDate])
+  @@index([categoryId])
+}
+
+model CouponTx {
+  id             String             @id
+  userId         String
+  user           User               @relation(fields: [userId], references: [id])
+  partnerId      String
+  partner        Partner            @relation(fields: [partnerId], references: [id])
+  categoryId     String
+  category       CouponCategory     @relation(fields: [categoryId], references: [id])
+  batchId        String
+  batch          CouponBatch        @relation(fields: [batchId], references: [id])
+  items          Json
+  totalAmount    Decimal            @db.Decimal(15, 4)
+  status         TxStatus
+  txHash         String             @unique
+  idempotencyKey String?            @unique
+  createdAt      DateTime
+  confirmedAt    DateTime?
+  commissions    CommissionRecord[]
+
+  @@index([userId, createdAt])
+  @@index([partnerId])
+  @@index([categoryId])
+  @@index([batchId])
+  @@index([status])
+}
+
+model CommissionRecord {
+  id            String           @id @default(uuid())
+  transactionId String
+  transaction   CouponTx         @relation(fields: [transactionId], references: [id])
+  partnerId     String
+  partner       Partner          @relation(fields: [partnerId], references: [id])
+  categoryCode  String
+  rate          Decimal          @db.Decimal(5, 4)
+  baseAmount    Decimal          @db.Decimal(15, 4)
+  amount        Decimal          @db.Decimal(15, 4)
+  mode          DistributionMode
+  createdAt     DateTime         @default(now())
+
+  @@index([transactionId])
+  @@index([partnerId])
+}
+
+model LedgerEntry {
+  id            String      @id @default(uuid())
+  transactionId String
+  accountType   AccountType
+  accountCode   String
+  debit         Decimal     @db.Decimal(15, 4)
+  credit        Decimal     @db.Decimal(15, 4)
+  memo          String
+  createdAt     DateTime    @default(now())
+
+  @@index([transactionId])
+  @@index([accountCode])
+}

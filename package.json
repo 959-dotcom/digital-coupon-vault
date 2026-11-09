@@ -1,0 +1,23 @@
+{
+  "name": "vantage-desk",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Enterprise digital coupon desk with a multi-tier affiliate ledger.",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev -w @vantage/api",
+    "dev:web": "npm run dev -w @vantage/web",
+    "typecheck": "npm run typecheck -w @vantage/api && npm run typecheck -w @vantage/web",
+    "test": "npm run test -w @vantage/api",
+    "prisma:generate": "npm run prisma:generate -w @vantage/api",
+    "prisma:validate": "npm run prisma:validate -w @vantage/api",
+    "prisma:migrate": "npm run prisma:migrate -w @vantage/api",
+    "seed": "npm run seed -w @vantage/api"
+  }
+}
