@@ -10,6 +10,9 @@
     "apps/api",
     "apps/web"
   ],
+  "overrides": {
+    "typescript": "6.0.3"
+  },
   "scripts": {
     "dev:api": "npm run start:dev -w @vantage/api",
     "dev:web": "npm run dev -w @vantage/web",
