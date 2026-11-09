@@ -17,7 +17,7 @@ services:
       retries: 20
 
   redis:
-    image: redis:7
+    image: redis:7-alpine
     ports:
       - "6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
@@ -28,6 +28,85 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://coupon:coupon@postgres:5432/coupon?schema=public
+      REDIS_URL: redis://redis:6379
+      API_PORT: "4000"
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      SERVER_VAULT_SECRET: ${SERVER_VAULT_SECRET:-}
+      HMAC_SECRET: ${HMAC_SECRET:-}
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then((res)=>process.exit(res.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 25s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["sh", "-c", "npx prisma migrate deploy && node dist/workers/batch.worker.js"]
+    environment:
+      DATABASE_URL: postgresql://coupon:coupon@postgres:5432/coupon?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      SERVER_VAULT_SECRET: ${SERVER_VAULT_SECRET:-}
+      HMAC_SECRET: ${HMAC_SECRET:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      API_INTERNAL_URL: http://api:4000
+      HMAC_SECRET: ${HMAC_SECRET:-}
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then((res)=>process.exit(res.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
 
 volumes:
   vantage_pg:

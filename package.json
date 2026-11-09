@@ -21,6 +21,8 @@
     "prisma:generate": "npm run prisma:generate -w @vantage/api",
     "prisma:validate": "npm run prisma:validate -w @vantage/api",
     "prisma:migrate": "npm run prisma:migrate -w @vantage/api",
-    "seed": "npm run seed -w @vantage/api"
+    "seed": "npm run seed -w @vantage/api",
+    "audit:ledger": "npm run audit:ledger -w @vantage/api",
+    "start:worker": "npm run start:worker -w @vantage/api"
   }
 }

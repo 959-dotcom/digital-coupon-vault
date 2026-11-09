@@ -13,21 +13,18 @@ import { isSelectionType } from './selection.js';
 import { buildPayoutLedger, payoutsByUser, type Outcome } from './payout.js';
 import { countdownSeconds, cutoffForSlot, nextSession, parseSchedule, type Schedule } from './schedule.js';
 import { NotificationService } from '../notifications/notification.service.js';
-import { YeekeeBatchScheduler } from './yeekee-batch.scheduler.js';
 
 @Injectable()
 export class CouponCategoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
-    private readonly yeekee: YeekeeBatchScheduler,
     private readonly audit: AuditLogService,
     private readonly notifications: NotificationService,
   ) {}
 
   async list() {
     const now = new Date();
-    await this.yeekee.sync(now);
     const categories = await this.prisma.couponCategory.findMany({
       where: { isActive: true },
       orderBy: { code: 'asc' },
@@ -45,10 +42,6 @@ export class CouponCategoryService {
     const category = await this.prisma.couponCategory.findUnique({ where: { id } });
     if (!category || !category.isActive) {
       throw new DomainError('CATEGORY_INACTIVE');
-    }
-    const schedule = parseSchedule(category.schedule);
-    if (schedule.intervalMinutes !== null) {
-      await this.yeekee.sync(now);
     }
     await this.ensureUpcoming(category, now);
     return this.present(category.id, now);

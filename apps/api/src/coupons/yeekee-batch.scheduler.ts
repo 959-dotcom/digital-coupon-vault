@@ -2,7 +2,6 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { cutoffInstant, formatCalendarDate } from '../cutoff/cutoff.js';
-import { NotificationService } from '../notifications/notification.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { cutoffForSlot, nextSession, parseSchedule } from './schedule.js';
 
@@ -10,7 +9,6 @@ import { cutoffForSlot, nextSession, parseSchedule } from './schedule.js';
 export class YeekeeBatchScheduler implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notifications: NotificationService,
     @InjectQueue('yeekee-batches') private readonly queue: Queue,
   ) {}
 
@@ -20,11 +18,7 @@ export class YeekeeBatchScheduler implements OnModuleInit {
   }
 
   async sync(now: Date): Promise<void> {
-    try {
-      await this.syncYeekee(now);
-    } finally {
-      await this.notifications.remindUpcoming(now);
-    }
+    await this.syncYeekee(now);
   }
 
   private async syncYeekee(now: Date): Promise<void> {

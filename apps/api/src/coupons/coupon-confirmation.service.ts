@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { WalletService } from '../redis/wallet.service.js';
 import { VaultService } from '../vault/vault.service.js';
 import { readStoredItems, canonicalizeItems } from './items.js';
+import { assertCutoffOpen, lockUserAndAssertBalance } from './point-reservation.js';
 import type { ConfirmOrderJob, OrderReceipt } from './dto.js';
 
 @Injectable()
@@ -55,6 +56,8 @@ export class CouponConfirmationService {
           if (again && (again.status === 'CONFIRMED' || again.status === 'SETTLED')) {
             return this.receiptFromRow(again, prepared.category.code);
           }
+          assertCutoffOpen(new Date(), prepared.cutoffAt);
+          await lockUserAndAssertBalance(tx, job.userId, prepared.total);
           await this.assertStillOpen(tx, prepared.category.id, prepared.batch.id);
 
           const id = randomUUID();
@@ -165,9 +168,7 @@ export class CouponConfirmationService {
       throw new DomainError('BATCH_CLOSED');
     }
     const cutoffAt = batchCutoff(category.schedule, category.cutoffTime, batch.batchDate, batch.slot);
-    if (new Date().getTime() > cutoffAt.getTime()) {
-      throw new DomainError('CUTOFF_PASSED');
-    }
+    assertCutoffOpen(new Date(), cutoffAt);
     const canonical = canonicalizeItems(
       {
         pad: category.pad,
@@ -184,10 +185,7 @@ export class CouponConfirmationService {
     if (!category || !category.isActive || !batch || !batch.isOpen || batch.settledAt || batch.categoryId !== category.id) {
       throw new DomainError('BATCH_CLOSED');
     }
-    const cutoffAt = batchCutoff(category.schedule, category.cutoffTime, batch.batchDate, batch.slot);
-    if (new Date().getTime() > cutoffAt.getTime()) {
-      throw new DomainError('CUTOFF_PASSED');
-    }
+    assertCutoffOpen(new Date(), batchCutoff(category.schedule, category.cutoffTime, batch.batchDate, batch.slot));
   }
 
   private receiptFromRow(
