@@ -180,7 +180,7 @@ function SelectionModal({ category, onClose }: { category: CategoryView | null; 
                   onClick={() => setStake(amount)}
                   className={cn(
                     'shrink-0 rounded-full border px-3 py-2 font-mono text-sm',
-                    activeStake === amount ? 'border-pine bg-pine text-paper' : 'border-line bg-card',
+                    activeStake === amount ? 'border-pine bg-pine text-white' : 'border-line bg-card text-white',
                   )}
                 >
                   {formatPoints(amount)}
@@ -228,7 +228,7 @@ function TypeButton({ active, label, onClick }: { active: boolean; label: string
     <button
       type="button"
       onClick={onClick}
-      className={cn('rounded-2xl border px-3 py-2 text-sm', active ? 'border-pine bg-pine text-paper' : 'border-line bg-card')}
+      className={cn('rounded-2xl border px-3 py-2 text-sm text-white', active ? 'border-pine bg-pine' : 'border-line bg-card')}
     >
       {label}
     </button>

@@ -5,7 +5,7 @@ export function Input({ className, ...props }: React.ComponentProps<'input'>) {
   return (
     <input
       className={cn(
-        'h-11 w-full rounded-2xl border border-line bg-card px-3 text-sm outline-none ring-brass/40 placeholder:text-ink/40 focus:ring-2',
+        'h-11 w-full rounded-2xl border border-line bg-paper px-3 text-sm text-white outline-none ring-[#dc2626]/40 placeholder:text-white/40 focus:ring-2',
         className,
       )}
       {...props}

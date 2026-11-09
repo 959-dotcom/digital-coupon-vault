@@ -150,8 +150,8 @@ export default function CatalogDeskPage() {
                 className={cn(
                   'shrink-0 rounded-full border px-3 py-2 font-mono text-sm',
                   (stake ?? category.data?.stakeAmounts[0]) === amount
-                    ? 'border-pine bg-pine text-paper'
-                    : 'border-line bg-card',
+                    ? 'border-pine bg-pine text-white'
+                    : 'border-line bg-card text-white',
                 )}
               >
                 {formatPoints(amount)}
@@ -169,7 +169,7 @@ export default function CatalogDeskPage() {
                   onClick={() => toggle(sku)}
                   className={cn(
                     'h-11 rounded-xl border font-mono text-sm',
-                    selected ? 'border-brass bg-brass text-paper' : 'border-line bg-paper',
+                    selected ? 'border-brass bg-brass text-white' : 'border-line bg-paper text-white',
                   )}
                 >
                   {sku}

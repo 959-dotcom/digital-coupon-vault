@@ -56,7 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-lg pb-24">
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line/80 bg-paper/90 px-4 py-3 backdrop-blur">
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line/80 bg-paper/90 px-4 py-3 text-white backdrop-blur">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass">{copy.brand}</p>
           <p className="text-sm font-semibold">{user.displayName}</p>
@@ -80,7 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="px-4 py-4">{children}</main>
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-card/95 backdrop-blur">
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-[#0a0a0a]/95 text-white backdrop-blur">
         <div className="mx-auto flex max-w-lg">
           {links.map((link) => {
             const Icon = link.icon;
@@ -91,7 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={link.href}
                 className={cn(
                   'flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium',
-                  active ? 'text-pine' : 'text-ink/50',
+                  active ? 'text-[#dc2626]' : 'text-white/50',
                 )}
               >
                 <Icon className="h-5 w-5" />

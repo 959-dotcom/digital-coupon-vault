@@ -60,7 +60,7 @@ export default function SettlementPage() {
           </label>
           <select
             id="settle-batch"
-            className="h-11 w-full rounded-2xl border border-line bg-paper px-3 text-sm"
+            className="h-11 w-full rounded-2xl border border-line bg-paper px-3 text-sm text-white"
             value={batchId}
             onChange={(event) => setBatchId(event.target.value)}
           >

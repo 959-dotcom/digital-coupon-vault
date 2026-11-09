@@ -116,7 +116,7 @@ export default function HierarchyPage() {
             <Label htmlFor="mode">{copy.hierarchy.mode}</Label>
             <select
               id="mode"
-              className="h-11 w-full rounded-2xl border border-line bg-card px-3 text-sm"
+              className="h-11 w-full rounded-2xl border border-line bg-paper px-3 text-sm text-white"
               value={mode}
               disabled={!canEdit}
               onChange={(event) => setMode(event.target.value as (typeof modes)[number])}
