@@ -66,6 +66,7 @@ model User {
   partner      Partner?   @relation(fields: [partnerId], references: [id])
   isActive     Boolean    @default(true)
   transactions CouponTx[]
+  withdrawals  Withdrawal[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -151,6 +152,18 @@ model CommissionRecord {
 
   @@index([transactionId])
   @@index([partnerId])
+}
+
+model Withdrawal {
+  id          String   @id
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  amount      Decimal  @db.Decimal(15, 4)
+  destination String
+  status      String   @default("ACCEPTED")
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model LedgerEntry {

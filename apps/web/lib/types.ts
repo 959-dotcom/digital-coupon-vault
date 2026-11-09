@@ -84,6 +84,24 @@ export type SettleResult = {
   payouts: Array<{ userId: string; amount: string }>;
 };
 
+export type WithdrawalView = {
+  id: string;
+  amount: string;
+  destination: string;
+  status: string;
+  createdAt: string;
+};
+
+export type PointLine = {
+  id: string;
+  accountCode: string;
+  debit: string;
+  credit: string;
+  memo: string;
+  createdAt: string;
+  running: string;
+};
+
 export type BalanceView = {
   accountCode: string;
   available: string;

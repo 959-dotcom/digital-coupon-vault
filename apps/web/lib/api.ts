@@ -9,7 +9,9 @@ import type {
   PartnerNode,
   SelectionType,
   SettleResult,
+  PointLine,
   TransactionView,
+  WithdrawalView,
 } from './types';
 
 export class ApiError extends Error {
@@ -82,6 +84,15 @@ export const api = {
   },
   balance() {
     return request<BalanceView>('/me/balance');
+  },
+  withdrawals() {
+    return request<WithdrawalView[]>('/me/withdrawals');
+  },
+  withdraw(body: { amount: string; destination: string }) {
+    return request<WithdrawalView>('/me/withdrawals', { method: 'POST', body: JSON.stringify(body) });
+  },
+  pointLedger() {
+    return request<PointLine[]>('/me/ledger');
   },
   hierarchy() {
     return request<PartnerNode[]>('/partners/hierarchy');

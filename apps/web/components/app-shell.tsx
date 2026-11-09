@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { LayoutGrid, LogOut, Network, ReceiptText, Scale } from 'lucide-react';
+import { LayoutGrid, LogOut, Network, ReceiptText, Scale, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -52,6 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ...(partnerNav ? [{ href: '/hierarchy', label: copy.nav.hierarchy, icon: Network }] : []),
     { href: '/catalog', label: copy.nav.catalog, icon: LayoutGrid },
     { href: '/orders', label: copy.nav.orders, icon: ReceiptText },
+    { href: '/transactions', label: copy.nav.flow, icon: Wallet },
   ];
 
   return (

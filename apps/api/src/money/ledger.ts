@@ -104,6 +104,37 @@ export function buildFundingLedger(input: { userId: string; amount: Decimal }): 
   return lines;
 }
 
+export function buildWithdrawalLedger(input: { userId: string; amount: Decimal }): LedgerLine[] {
+  if (input.amount.lte(0)) {
+    throw new Error('INVALID_AMOUNT');
+  }
+  const lines: LedgerLine[] = [
+    {
+      accountType: 'LIABILITY',
+      accountCode: `USER_POINTS:${input.userId}`,
+      debit: input.amount,
+      credit: ZERO,
+      memo: 'WITHDRAW_POINTS',
+    },
+    {
+      accountType: 'ASSET',
+      accountCode: 'PLATFORM_CASH',
+      debit: ZERO,
+      credit: input.amount,
+      memo: 'WITHDRAW_CASH',
+    },
+  ];
+  assertBalanced(lines);
+  return lines;
+}
+
+export function pointBalanceAfter(userId: string, opening: Decimal, lines: readonly LedgerLine[]): Decimal {
+  const accountCode = `USER_POINTS:${userId}`;
+  return lines
+    .filter((line) => line.accountCode === accountCode)
+    .reduce((balance, line) => balance.plus(line.credit).minus(line.debit), opening);
+}
+
 export function sumSides(lines: readonly { debit: Decimal; credit: Decimal }[]): {
   debit: string;
   credit: string;
