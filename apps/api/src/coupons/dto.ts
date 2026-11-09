@@ -1,15 +1,16 @@
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsString, IsUUID, Matches, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsUUID, Matches, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { SELECTION_TYPES } from './selection.js';
 
 export class OrderItemDto {
-  @Matches(/^\d{1,4}$/)
-  sku!: string;
+  @IsIn(SELECTION_TYPES)
+  type!: (typeof SELECTION_TYPES)[number];
 
-  @Matches(/^[1-9]\d{0,3}$/)
-  quantity!: string;
+  @Matches(/^\d{1,3}$/)
+  number!: string;
 
   @Matches(/^\d{1,11}\.\d{4}$/)
-  unitAmount!: string;
+  amount!: string;
 }
 
 export class CreateOrderDto {
@@ -42,12 +43,23 @@ export function assertIdempotencyKey(value: string | undefined): string {
   return value;
 }
 
+export class SettleBatchDto {
+  @IsUUID()
+  batchId!: string;
+
+  @Matches(/^\d{3}$/)
+  top3!: string;
+
+  @Matches(/^\d{2}$/)
+  bottom2!: string;
+}
+
 export type ConfirmOrderJob = {
   userId: string;
   partnerId: string;
   categoryId: string;
   batchId: string;
-  items: Array<{ sku: string; quantity: string; unitAmount: string }>;
+  items: Array<{ type: string; number: string; amount: string }>;
   idempotencyKey: string;
 };
 

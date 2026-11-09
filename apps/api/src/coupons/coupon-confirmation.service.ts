@@ -3,7 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { DomainError } from '../common/domain-error.js';
 import { CommissionEngineService } from '../commission/commission-engine.service.js';
-import { cutoffInstant, isPastCutoff } from '../cutoff/cutoff.js';
+import { cutoffInstant } from '../cutoff/cutoff.js';
+import { cutoffForSlot, parseSchedule } from './schedule.js';
 import { formatMoney, formatRate, moneyFromDatabase } from '../money/decimal.js';
 import { buildCouponLedger } from '../money/ledger.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -160,31 +161,31 @@ export class CouponConfirmationService {
       throw new DomainError('CATEGORY_INACTIVE');
     }
     const batch = await this.prisma.couponBatch.findUnique({ where: { id: job.batchId } });
-    if (!batch || !batch.isOpen || batch.categoryId !== category.id) {
+    if (!batch || !batch.isOpen || batch.settledAt || batch.categoryId !== category.id) {
       throw new DomainError('BATCH_CLOSED');
     }
-    if (isPastCutoff(new Date(), batch.batchDate, category.cutoffTime)) {
+    const cutoffAt = batchCutoff(category.schedule, category.cutoffTime, batch.batchDate, batch.slot);
+    if (new Date().getTime() > cutoffAt.getTime()) {
       throw new DomainError('CUTOFF_PASSED');
     }
     const canonical = canonicalizeItems(
       {
-        gridMin: category.gridMin,
-        gridMax: category.gridMax,
         pad: category.pad,
         stakeAmounts: category.stakeAmounts,
       },
       job.items,
     );
-    return { user, category, batch, items: canonical.items, total: canonical.total, cutoffAt: cutoffInstant(batch.batchDate, category.cutoffTime) };
+    return { user, category, batch, items: canonical.items, total: canonical.total, cutoffAt };
   }
 
   private async assertStillOpen(tx: Prisma.TransactionClient, categoryId: string, batchId: string): Promise<void> {
     const category = await tx.couponCategory.findUnique({ where: { id: categoryId } });
     const batch = await tx.couponBatch.findUnique({ where: { id: batchId } });
-    if (!category || !category.isActive || !batch || !batch.isOpen || batch.categoryId !== category.id) {
+    if (!category || !category.isActive || !batch || !batch.isOpen || batch.settledAt || batch.categoryId !== category.id) {
       throw new DomainError('BATCH_CLOSED');
     }
-    if (isPastCutoff(new Date(), batch.batchDate, category.cutoffTime)) {
+    const cutoffAt = batchCutoff(category.schedule, category.cutoffTime, batch.batchDate, batch.slot);
+    if (new Date().getTime() > cutoffAt.getTime()) {
       throw new DomainError('CUTOFF_PASSED');
     }
   }
@@ -232,4 +233,9 @@ export class CouponConfirmationService {
       batchId: row.batchId,
     };
   }
+}
+
+function batchCutoff(schedule: unknown, fallback: string, batchDate: Date, slot: string): Date {
+  const parsed = parseSchedule(schedule);
+  return cutoffInstant(batchDate, cutoffForSlot(parsed, fallback, slot));
 }

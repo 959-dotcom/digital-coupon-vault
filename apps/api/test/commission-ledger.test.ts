@@ -110,11 +110,9 @@ test('vault hash is stable and rejects tampering', () => {
   const createdAt = new Date('2026-11-09T08:30:00.000Z');
   const items = [
     {
-      sku: '07',
-      label: 'No. 07',
-      quantity: '2',
-      unitAmount: '10.0000',
-      lineAmount: '20.0000',
+      type: 'TOP_2',
+      number: '07',
+      amount: '20.0000',
     },
   ];
   const input = {

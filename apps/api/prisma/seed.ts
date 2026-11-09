@@ -3,8 +3,10 @@ import { resolve } from 'node:path';
 import bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Redis } from 'ioredis';
-import { PrismaClient } from '../src/generated/prisma/client.js';
-import { bangkokCalendarDate, formatCalendarDate } from '../src/cutoff/cutoff.js';
+import { CATEGORY_SEEDS, DEFAULT_STAKES } from '../src/coupons/category-catalog.js';
+import { Prisma, PrismaClient } from '../src/generated/prisma/client.js';
+import { nextSession } from '../src/coupons/schedule.js';
+import { formatCalendarDate } from '../src/cutoff/cutoff.js';
 import { formatMoney, parseExactMoney, toMinorUnits } from '../src/money/decimal.js';
 import { buildFundingLedger } from '../src/money/ledger.js';
 
@@ -23,32 +25,62 @@ const redis = new Redis(redisUrl);
 
 async function main(): Promise<void> {
   const passwordHash = await bcrypt.hash(seedPassword as string, 12);
-  const category = await prisma.couponCategory.upsert({
-    where: { code: 'D2' },
-    update: { isActive: true },
-    create: {
-      code: 'D2',
-      name: 'คูปองสองหลัก',
-      description: 'เลือกหมายเลข 00 ถึง 99 ก่อนเวลาตัดยอดตามเวลาประเทศไทย',
-      cutoffTime: '23:59:59',
-      gridMin: 0,
-      gridMax: 99,
-      pad: 2,
-      stakeAmounts: ['10.0000', '20.0000', '50.0000', '100.0000'],
-    },
+  const seeded = [];
+  for (const category of CATEGORY_SEEDS) {
+    const saved = await prisma.couponCategory.upsert({
+      where: { code: category.code },
+      update: {
+        name: category.name,
+        description: category.description,
+        cutoffTime: category.cutoffTime,
+        schedule: category.schedule as Prisma.InputJsonValue,
+        isActive: true,
+        gridMin: category.gridMin,
+        gridMax: category.gridMax,
+        pad: category.pad,
+        stakeAmounts: [...DEFAULT_STAKES],
+      },
+      create: {
+        code: category.code,
+        name: category.name,
+        description: category.description,
+        cutoffTime: category.cutoffTime,
+        schedule: category.schedule as Prisma.InputJsonValue,
+        isActive: true,
+        gridMin: category.gridMin,
+        gridMax: category.gridMax,
+        pad: category.pad,
+        stakeAmounts: [...DEFAULT_STAKES],
+      },
+    });
+    const next = nextSession(category.schedule, new Date());
+    if (next) {
+      await prisma.couponBatch.upsert({
+        where: {
+          categoryId_batchDate_slot: {
+            categoryId: saved.id,
+            batchDate: next.batchDate,
+            slot: next.slot,
+          },
+        },
+        update: {},
+        create: {
+          categoryId: saved.id,
+          batchDate: next.batchDate,
+          slot: next.slot,
+          label: `งวด ${formatCalendarDate(next.batchDate)} ${next.slot}`,
+          isOpen: true,
+        },
+      });
+    }
+    seeded.push(saved.code);
+  }
+  await prisma.couponCategory.updateMany({
+    where: { code: { notIn: [...seeded] } },
+    data: { isActive: false },
   });
 
-  const today = bangkokCalendarDate(new Date());
-  const batch = await prisma.couponBatch.upsert({
-    where: { categoryId_batchDate: { categoryId: category.id, batchDate: today } },
-    update: { isOpen: true },
-    create: {
-      categoryId: category.id,
-      batchDate: today,
-      label: `งวด ${formatCalendarDate(today)}`,
-      isOpen: true,
-    },
-  });
+  const ratesFor = (rate: string) => Object.fromEntries(CATEGORY_SEEDS.map((category) => [category.code, rate]));
 
   const house = await upsertPartner({
     code: 'house',
@@ -56,7 +88,7 @@ async function main(): Promise<void> {
     parentId: null,
     path: 'house',
     distributionMode: 'COMMISSION_ONLY',
-    commissionRates: { D2: '0.0200' },
+    commissionRates: ratesFor('0.0200'),
   });
   const branch = await upsertPartner({
     code: 'branch',
@@ -64,7 +96,7 @@ async function main(): Promise<void> {
     parentId: house.id,
     path: 'house.branch',
     distributionMode: 'FULL_PASS',
-    commissionRates: { D2: '0.0600' },
+    commissionRates: ratesFor('0.0600'),
   });
   const shop = await upsertPartner({
     code: 'shop',
@@ -72,7 +104,7 @@ async function main(): Promise<void> {
     parentId: branch.id,
     path: 'house.branch.shop',
     distributionMode: 'SPLIT_KEEP',
-    commissionRates: { D2: '0.1000' },
+    commissionRates: ratesFor('0.1000'),
   });
 
   await upsertUser({
@@ -126,8 +158,7 @@ async function main(): Promise<void> {
   console.log(
     JSON.stringify(
       {
-        category: category.code,
-        batch: batch.label,
+        categories: seeded,
         partners: [house.code, branch.code, shop.code],
         users: ['admin@vantage.local', 'master@vantage.local', 'shop@vantage.local', 'member@vantage.local'],
       },

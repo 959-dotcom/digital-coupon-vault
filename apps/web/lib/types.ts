@@ -13,11 +13,16 @@ export type LoginResponse = {
   user: SessionUser;
 };
 
+export type SelectionType = 'TOP_3' | 'PERM_3' | 'TOP_2' | 'BOTTOM_2' | 'SINGLE_TOP' | 'SINGLE_BOTTOM' | 'RUNNING_MIX';
+export type CategoryGroup = 'NATIONAL' | 'REGIONAL' | 'FLASH' | 'STOCK';
+
 export type BatchView = {
   id: string;
   batchDate: string;
+  slot: string;
   label: string;
   isOpen: boolean;
+  settled: boolean;
   pastCutoff: boolean;
   cutoffAt: string;
 };
@@ -28,19 +33,20 @@ export type CategoryView = {
   name: string;
   description: string;
   cutoffTime: string;
+  group: CategoryGroup;
   gridMin: number;
   gridMax: number;
   pad: number;
   stakeAmounts: string[];
+  countdownSeconds: number;
+  nextCutoffAt: string | null;
   batches: BatchView[];
 };
 
 export type VaultItem = {
-  sku: string;
-  label: string;
-  quantity: string;
-  unitAmount: string;
-  lineAmount: string;
+  type: SelectionType;
+  number: string;
+  amount: string;
 };
 
 export type OrderReceipt = {
@@ -69,6 +75,13 @@ export type TransactionView = {
   categoryCode: string;
   categoryName: string;
   batchId: string;
+};
+
+export type SettleResult = {
+  batchId: string;
+  settled: boolean;
+  outcome: { top3: string; bottom2: string };
+  payouts: Array<{ userId: string; amount: string }>;
 };
 
 export type BalanceView = {

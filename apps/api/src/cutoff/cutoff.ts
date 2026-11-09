@@ -10,13 +10,13 @@ export function isPastCutoff(now: Date, batchDate: Date, cutoffTime: string): bo
 }
 
 export function cutoffInstant(batchDate: Date, cutoffTime: string): Date {
-  const match = /^(\d{2}):(\d{2}):(\d{2})$/.exec(cutoffTime);
+  const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(cutoffTime);
   if (!match) {
     throw new Error('BAD_CUTOFF');
   }
   const hour = Number(match[1]);
   const minute = Number(match[2]);
-  const second = Number(match[3]);
+  const second = Number(match[3] ?? '0');
   if (hour > 23 || minute > 59 || second > 59) {
     throw new Error('BAD_CUTOFF');
   }
@@ -34,6 +34,17 @@ export function cutoffInstant(batchDate: Date, cutoffTime: string): Date {
 export function bangkokCalendarDate(now: Date): Date {
   const parts = civilParts(now, BANGKOK);
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+}
+
+export function bangkokParts(now: Date): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  return civilParts(now, BANGKOK);
 }
 
 export function formatCalendarDate(value: Date): string {

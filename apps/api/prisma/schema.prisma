@@ -77,8 +77,10 @@ model CouponCategory {
   code          String        @unique
   name          String
   description   String
-  /// Wall-clock cutoff in Asia/Bangkok, HH:mm:ss. Compared with the server clock only.
+  /// Wall-clock cutoff in Asia/Bangkok, HH:mm. Compared with the server clock only.
   cutoffTime    String
+  /// Days, weekdays, sessions, or the Yeekee interval. The server computes the next cutoff from this.
+  schedule      Json
   isActive      Boolean       @default(true)
   gridMin       Int
   gridMax       Int
@@ -95,12 +97,16 @@ model CouponBatch {
   categoryId   String
   category     CouponCategory @relation(fields: [categoryId], references: [id])
   batchDate    DateTime       @db.Date
+  /// Session cutoff HH:mm, or a Yeekee slot such as 01.
+  slot         String
   label        String
   isOpen       Boolean        @default(true)
+  settledAt    DateTime?
+  outcome      Json?
   transactions CouponTx[]
   createdAt    DateTime       @default(now())
 
-  @@unique([categoryId, batchDate])
+  @@unique([categoryId, batchDate, slot])
   @@index([categoryId])
 }
 

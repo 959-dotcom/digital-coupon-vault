@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { LayoutGrid, LogOut, Network, ReceiptText } from 'lucide-react';
+import { LayoutGrid, LogOut, Network, ReceiptText, Scale } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -48,6 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const partnerNav = user.role !== 'MEMBER';
   const links = [
+    ...(user.role === 'SUPER_ADMIN' ? [{ href: '/settlement', label: copy.nav.settlement, icon: Scale }] : []),
     ...(partnerNav ? [{ href: '/hierarchy', label: copy.nav.hierarchy, icon: Network }] : []),
     { href: '/catalog', label: copy.nav.catalog, icon: LayoutGrid },
     { href: '/orders', label: copy.nav.orders, icon: ReceiptText },

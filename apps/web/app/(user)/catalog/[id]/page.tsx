@@ -58,9 +58,9 @@ export default function CatalogDeskPage() {
         throw new ApiError(400, copy.desk.noBatch);
       }
       const items = Object.entries(lines).map(([sku, line]) => ({
-        sku,
-        quantity: line.quantity,
-        unitAmount: activeStake,
+        type: category.data.pad >= 3 ? ('TOP_3' as const) : ('TOP_2' as const),
+        number: sku,
+        amount: new Decimal(line.quantity).mul(activeStake).toFixed(4),
       }));
       return api.order(
         { categoryId: category.data.id, batchId: batch.id, items },
@@ -255,11 +255,11 @@ export default function CatalogDeskPage() {
               </dl>
               <ul className="mt-4 space-y-1 text-sm">
                 {receipt.items.map((item) => (
-                  <li key={item.sku} className="flex justify-between gap-3">
+                  <li key={`${item.type}:${item.number}`} className="flex justify-between gap-3">
                     <span>
-                      {copy.desk.number} {item.sku} × {item.quantity}
+                      {item.type} {item.number}
                     </span>
-                    <span className="font-mono">{formatPoints(item.lineAmount)}</span>
+                    <span className="font-mono">{formatPoints(item.amount)}</span>
                   </li>
                 ))}
               </ul>

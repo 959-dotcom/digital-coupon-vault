@@ -1,0 +1,197 @@
+import { Injectable } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client.js';
+import { DomainError } from '../common/domain-error.js';
+import { bangkokCalendarDate, cutoffInstant, formatCalendarDate } from '../cutoff/cutoff.js';
+import { formatMoney, moneyFromDatabase, parseExactMoney } from '../money/decimal.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { WalletService } from '../redis/wallet.service.js';
+import type { SettleBatchDto } from './dto.js';
+import { readStoredItems } from './items.js';
+import { isSelectionType } from './selection.js';
+import { buildPayoutLedger, payoutsByUser, type Outcome } from './payout.js';
+import { countdownSeconds, cutoffForSlot, nextSession, parseSchedule, type Schedule } from './schedule.js';
+import { YeekeeBatchScheduler } from './yeekee-batch.scheduler.js';
+
+@Injectable()
+export class CouponCategoryService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly wallet: WalletService,
+    private readonly yeekee: YeekeeBatchScheduler,
+  ) {}
+
+  async list() {
+    const now = new Date();
+    await this.yeekee.sync(now);
+    const categories = await this.prisma.couponCategory.findMany({
+      where: { isActive: true },
+      orderBy: { code: 'asc' },
+    });
+    const presented = [];
+    for (const category of categories) {
+      await this.ensureUpcoming(category, now);
+      presented.push(await this.present(category.id, now));
+    }
+    return presented;
+  }
+
+  async get(id: string) {
+    const now = new Date();
+    const category = await this.prisma.couponCategory.findUnique({ where: { id } });
+    if (!category || !category.isActive) {
+      throw new DomainError('CATEGORY_INACTIVE');
+    }
+    const schedule = parseSchedule(category.schedule);
+    if (schedule.intervalMinutes !== null) {
+      await this.yeekee.sync(now);
+    }
+    await this.ensureUpcoming(category, now);
+    return this.present(category.id, now);
+  }
+
+  async settle(dto: SettleBatchDto) {
+    const outcome: Outcome = { top3: dto.top3, bottom2: dto.bottom2 };
+    const payoutRows = await this.prisma.$transaction(
+      async (tx) => {
+        const batch = await tx.couponBatch.findUnique({
+          where: { id: dto.batchId },
+          include: { category: true },
+        });
+        if (!batch) {
+          throw new DomainError('BATCH_NOT_FOUND');
+        }
+        if (batch.settledAt) {
+          throw new DomainError('BATCH_SETTLED');
+        }
+        const confirmed = await tx.couponTx.findMany({
+          where: { batchId: batch.id, status: 'CONFIRMED' },
+        });
+        const bets = confirmed.flatMap((row) =>
+          readStoredItems(row.items).flatMap((item) => {
+            if (!isSelectionType(item.type)) {
+              return [];
+            }
+            return [
+              {
+                userId: row.userId,
+                bet: {
+                  type: item.type,
+                  number: item.number,
+                  amount: parseExactMoney(item.amount),
+                },
+              },
+            ];
+          }),
+        );
+        const payouts = payoutsByUser(bets, outcome);
+        const lines = buildPayoutLedger(payouts);
+        if (lines.length > 0) {
+          await tx.ledgerEntry.createMany({
+            data: lines.map((line) => ({
+              transactionId: batch.id,
+              accountType: line.accountType,
+              accountCode: line.accountCode,
+              debit: formatMoney(line.debit),
+              credit: formatMoney(line.credit),
+              memo: line.memo,
+            })),
+          });
+        }
+        await tx.couponBatch.update({
+          where: { id: batch.id },
+          data: {
+            isOpen: false,
+            settledAt: new Date(),
+            outcome: outcome as Prisma.InputJsonValue,
+          },
+        });
+        return payouts.map((payout) => ({ userId: payout.userId, amount: formatMoney(payout.amount) }));
+      },
+      { isolationLevel: 'Serializable' },
+    );
+    for (const payout of payoutRows) {
+      await this.wallet.credit(payout.userId, moneyFromDatabase(payout.amount));
+    }
+    return {
+      batchId: dto.batchId,
+      settled: true,
+      outcome,
+      payouts: payoutRows,
+    };
+  }
+
+  private async ensureUpcoming(
+    category: { id: string; code: string; schedule: unknown; cutoffTime: string },
+    now: Date,
+  ): Promise<void> {
+    const schedule = parseSchedule(category.schedule);
+    if (schedule.intervalMinutes !== null) {
+      return;
+    }
+    const next = nextSession(schedule, now);
+    if (!next) {
+      return;
+    }
+    const label = `งวด ${formatCalendarDate(next.batchDate)} ${next.slot}`;
+    await this.prisma.couponBatch.upsert({
+      where: {
+        categoryId_batchDate_slot: {
+          categoryId: category.id,
+          batchDate: next.batchDate,
+          slot: next.slot,
+        },
+      },
+      update: {},
+      create: {
+        categoryId: category.id,
+        batchDate: next.batchDate,
+        slot: next.slot,
+        label,
+        isOpen: true,
+      },
+    });
+  }
+
+  private async present(id: string, now: Date) {
+    const category = await this.prisma.couponCategory.findUniqueOrThrow({
+      where: { id },
+      include: { batches: { orderBy: [{ batchDate: 'asc' }, { slot: 'asc' }] } },
+    });
+    const schedule = parseSchedule(category.schedule);
+    const today = bangkokCalendarDate(now);
+    const upcoming = nextSession(schedule, now);
+    const stakes = Array.isArray(category.stakeAmounts) ? category.stakeAmounts.map((value) => String(value)) : [];
+    return {
+      id: category.id,
+      code: category.code,
+      name: category.name,
+      description: category.description,
+      cutoffTime: category.cutoffTime,
+      group: schedule.group,
+      schedule,
+      gridMin: category.gridMin,
+      gridMax: category.gridMax,
+      pad: category.pad,
+      stakeAmounts: stakes,
+      countdownSeconds: upcoming ? countdownSeconds(upcoming.cutoffAt, now) : 0,
+      nextCutoffAt: upcoming ? upcoming.cutoffAt.toISOString() : null,
+      batches: category.batches
+        .filter((batch) => batch.batchDate.getTime() >= today.getTime())
+        .map((batch) => {
+          const cutoff = cutoffInstant(batch.batchDate, cutoffForSlot(schedule, category.cutoffTime, batch.slot));
+          return {
+            id: batch.id,
+            batchDate: formatCalendarDate(batch.batchDate),
+            slot: batch.slot,
+            label: batch.label,
+            isOpen: batch.isOpen && !batch.settledAt,
+            settled: batch.settledAt !== null,
+            pastCutoff: now.getTime() > cutoff.getTime(),
+            cutoffAt: cutoff.toISOString(),
+          };
+        }),
+    };
+  }
+}
+
+export type PresentedSchedule = Schedule;

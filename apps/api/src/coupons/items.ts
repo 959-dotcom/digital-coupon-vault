@@ -1,16 +1,15 @@
-import { Decimal, formatMoney, parseExactMoney, parsePositiveQuantity } from '../money/decimal.js';
+import { Decimal, formatMoney, parseExactMoney } from '../money/decimal.js';
 import type { VaultItem } from '../vault/canonical.js';
 import { DomainError } from '../common/domain-error.js';
+import { digitsFor, isSelectionType, numberMatchesType, type SelectionType } from './selection.js';
 
 export type OrderItemInput = {
-  sku: string;
-  quantity: string;
-  unitAmount: string;
+  type: string;
+  number: string;
+  amount: string;
 };
 
 export type ItemRules = {
-  gridMin: number;
-  gridMax: number;
   pad: number;
   stakeAmounts: unknown;
 };
@@ -23,55 +22,48 @@ export function canonicalizeItems(rules: ItemRules, inputs: readonly OrderItemIn
     throw new DomainError('INVALID_ITEM');
   }
   const stakes = readStakes(rules.stakeAmounts);
-  const merged = new Map<string, { quantity: Decimal; unitAmount: Decimal }>();
+  const merged = new Map<string, { type: SelectionType; number: string; amount: Decimal }>();
 
   for (const input of inputs) {
-    if (!/^\d{1,4}$/.test(input.sku)) {
+    if (!isSelectionType(input.type) || !numberMatchesType(input.type, input.number)) {
       throw new DomainError('INVALID_ITEM');
     }
-    const index = new Decimal(input.sku);
-    if (!index.isInteger() || index.lt(rules.gridMin) || index.gt(rules.gridMax)) {
+    if (digitsFor(input.type) > rules.pad) {
       throw new DomainError('INVALID_ITEM');
     }
-    const sku = index.toFixed(0).padStart(rules.pad, '0');
-    const quantity = parsePositiveQuantity(input.quantity);
-    const unitAmount = parseExactMoney(input.unitAmount);
-    if (!stakes.some((stake) => stake.eq(unitAmount))) {
+    const amount = parseExactMoney(input.amount);
+    if (!isStakeMultiple(amount, stakes)) {
       throw new DomainError('INVALID_AMOUNT');
     }
-    const current = merged.get(sku);
-    if (!current) {
-      merged.set(sku, { quantity, unitAmount });
-      continue;
-    }
-    if (!current.unitAmount.eq(unitAmount)) {
-      throw new DomainError('INVALID_ITEM');
-    }
-    const nextQuantity = current.quantity.plus(quantity);
-    if (nextQuantity.gt(9999)) {
+    const key = `${input.type}:${input.number}`;
+    const current = merged.get(key);
+    const nextAmount = current ? current.amount.plus(amount) : amount;
+    if (!isStakeMultiple(nextAmount, stakes)) {
       throw new DomainError('INVALID_AMOUNT');
     }
-    current.quantity = nextQuantity;
+    merged.set(key, { type: input.type, number: input.number, amount: nextAmount });
   }
 
-  const items = [...merged.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([sku, line]) => {
-      const lineAmount = line.quantity.mul(line.unitAmount);
-      return {
-        sku,
-        label: `No. ${sku}`,
-        quantity: line.quantity.toFixed(0),
-        unitAmount: formatMoney(line.unitAmount),
-        lineAmount: formatMoney(lineAmount),
-      };
-    });
+  const items = [...merged.values()]
+    .sort((left, right) => `${left.type}:${left.number}`.localeCompare(`${right.type}:${right.number}`))
+    .map((line) => ({
+      type: line.type,
+      number: line.number,
+      amount: formatMoney(line.amount),
+    }));
 
-  const total = items.reduce((sum, item) => sum.plus(new Decimal(item.lineAmount)), new Decimal(0));
+  const total = items.reduce((sum, item) => sum.plus(new Decimal(item.amount)), new Decimal(0));
   if (total.lte(0) || total.gte('100000000000')) {
     throw new DomainError('INVALID_AMOUNT');
   }
   return { items, total };
+}
+
+function isStakeMultiple(amount: Decimal, stakes: readonly Decimal[]): boolean {
+  return stakes.some((stake) => {
+    const quantity = amount.div(stake);
+    return quantity.isInteger() && quantity.gte(1) && quantity.lte(9999);
+  });
 }
 
 function readStakes(value: unknown): Decimal[] {
@@ -90,14 +82,14 @@ export function readStoredItems(value: unknown): VaultItem[] {
       throw new DomainError('VAULT_MISMATCH');
     }
     const row = entry as Record<string, unknown>;
-    const item: VaultItem = {
-      sku: stringField(row.sku),
-      label: stringField(row.label),
-      quantity: stringField(row.quantity),
-      unitAmount: stringField(row.unitAmount),
-      lineAmount: stringField(row.lineAmount),
-    };
-    return item;
+    const type = stringField(row.type);
+    const number = stringField(row.number);
+    const amount = stringField(row.amount);
+    if (!isSelectionType(type) || !numberMatchesType(type, number)) {
+      throw new DomainError('VAULT_MISMATCH');
+    }
+    parseExactMoney(amount);
+    return { type, number, amount };
   });
 }
 

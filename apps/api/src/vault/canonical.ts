@@ -2,11 +2,9 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { Decimal, formatMoney } from '../money/decimal.js';
 
 export type VaultItem = {
-  sku: string;
-  label: string;
-  quantity: string;
-  unitAmount: string;
-  lineAmount: string;
+  type: string;
+  number: string;
+  amount: string;
 };
 
 export type VaultPreimage = {

@@ -7,6 +7,8 @@ import type {
   LoginResponse,
   OrderReceipt,
   PartnerNode,
+  SelectionType,
+  SettleResult,
   TransactionView,
 } from './types';
 
@@ -57,17 +59,23 @@ export const api = {
     return request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(body) });
   },
   categories() {
-    return request<CategoryView[]>('/coupons/categories');
+    return request<CategoryView[]>('/api/v1/categories');
   },
   category(id: string) {
-    return request<CategoryView>(`/coupons/categories/${id}`);
+    return request<CategoryView>(`/api/v1/categories/${id}`);
   },
-  order(body: { categoryId: string; batchId: string; items: Array<{ sku: string; quantity: string; unitAmount: string }> }, idempotencyKey: string) {
+  order(
+    body: { categoryId: string; batchId: string; items: Array<{ type: SelectionType; number: string; amount: string }> },
+    idempotencyKey: string,
+  ) {
     return request<OrderReceipt>('/coupons/orders', {
       method: 'POST',
       body: JSON.stringify(body),
       headers: { 'idempotency-key': idempotencyKey },
     });
+  },
+  settle(body: { batchId: string; top3: string; bottom2: string }) {
+    return request<SettleResult>('/api/v1/admin/batches/settle', { method: 'POST', body: JSON.stringify(body) });
   },
   transactions() {
     return request<TransactionView[]>('/me/transactions');
