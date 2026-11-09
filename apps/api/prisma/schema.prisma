@@ -67,6 +67,7 @@ model User {
   isActive     Boolean    @default(true)
   transactions CouponTx[]
   withdrawals  Withdrawal[]
+  notifications Notification[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -162,6 +163,32 @@ model Withdrawal {
   destination String
   status      String   @default("ACCEPTED")
   createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model AdminAuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  target    String
+  detail    Json
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  kind      String
+  title     String
+  body      String
+  readAt    DateTime?
+  dedupeKey String    @unique
+  createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
 }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
+import { AuditLogService } from '../audit/audit-log.service.js';
 import { DomainError } from '../common/domain-error.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RateLimitService } from '../redis/rate-limit.service.js';
@@ -15,6 +16,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly rateLimit: RateLimitService,
+    private readonly audit: AuditLogService,
   ) {}
 
   async login(dto: LoginDto, ip: string): Promise<{ accessToken: string; user: AuthUser & { displayName: string } }> {
@@ -38,6 +40,14 @@ export class AuthService {
       role: authUser.role,
       partnerId: authUser.partnerId,
     });
+    if (authUser.role === 'SUPER_ADMIN') {
+      await this.audit.append(this.prisma, {
+        actorId: authUser.userId,
+        action: 'ADMIN_LOGIN',
+        target: authUser.userId,
+        detail: { email: authUser.email },
+      });
+    }
     return { accessToken, user: { ...authUser, displayName: user.displayName } };
   }
 }

@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { AuditLogService } from '../audit/audit-log.service.js';
+import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
 import { bangkokCalendarDate, cutoffInstant, formatCalendarDate } from '../cutoff/cutoff.js';
 import { formatMoney, moneyFromDatabase, parseExactMoney } from '../money/decimal.js';
@@ -10,6 +12,7 @@ import { readStoredItems } from './items.js';
 import { isSelectionType } from './selection.js';
 import { buildPayoutLedger, payoutsByUser, type Outcome } from './payout.js';
 import { countdownSeconds, cutoffForSlot, nextSession, parseSchedule, type Schedule } from './schedule.js';
+import { NotificationService } from '../notifications/notification.service.js';
 import { YeekeeBatchScheduler } from './yeekee-batch.scheduler.js';
 
 @Injectable()
@@ -18,6 +21,8 @@ export class CouponCategoryService {
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly yeekee: YeekeeBatchScheduler,
+    private readonly audit: AuditLogService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async list() {
@@ -49,7 +54,7 @@ export class CouponCategoryService {
     return this.present(category.id, now);
   }
 
-  async settle(dto: SettleBatchDto) {
+  async settle(actor: AuthUser, dto: SettleBatchDto) {
     const outcome: Outcome = { top3: dto.top3, bottom2: dto.bottom2 };
     const payoutRows = await this.prisma.$transaction(
       async (tx) => {
@@ -105,7 +110,15 @@ export class CouponCategoryService {
             outcome: outcome as Prisma.InputJsonValue,
           },
         });
-        return payouts.map((payout) => ({ userId: payout.userId, amount: formatMoney(payout.amount) }));
+        const credited = payouts.map((payout) => ({ userId: payout.userId, amount: formatMoney(payout.amount) }));
+        await this.notifications.recordWins(tx, batch.id, credited);
+        await this.audit.append(tx, {
+          actorId: actor.userId,
+          action: 'BATCH_SETTLEMENT',
+          target: batch.id,
+          detail: { top3: outcome.top3, bottom2: outcome.bottom2, payouts: credited.length },
+        });
+        return credited;
       },
       { isolationLevel: 'Serializable' },
     );

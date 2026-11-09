@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { AuditLogService } from '../audit/audit-log.service.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
 import { Decimal, ZERO, formatMoney, moneyFromDatabase, parseExactMoney } from '../money/decimal.js';
@@ -19,6 +20,7 @@ export class LedgerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   async fund(actor: AuthUser, dto: FundPointsDto) {
@@ -42,6 +44,12 @@ export class LedgerService {
           credit: formatMoney(line.credit),
           memo: line.memo,
         })),
+      });
+      await this.auditLog.append(tx, {
+        actorId: actor.userId,
+        action: 'LEDGER_ADJUSTMENT',
+        target: user.id,
+        detail: { transactionId, amount: formatMoney(amount), memo: dto.memo.trim() },
       });
     });
     await this.wallet.credit(user.id, amount);

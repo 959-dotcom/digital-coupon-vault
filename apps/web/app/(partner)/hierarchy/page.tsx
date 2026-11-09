@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { Decimal } from 'decimal.js';
 import { useEffect, useMemo, useState } from 'react';
 import { StatePanel } from '@/components/state-panel';
@@ -89,6 +90,14 @@ export default function HierarchyPage() {
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-semibold">{copy.hierarchy.title}</h1>
+      <div className="mt-3 flex gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href="/hierarchy/tree">{copy.hierarchy.tree}</Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/reports/commission">{copy.hierarchy.report}</Link>
+        </Button>
+      </div>
       {tree.isLoading ? <StatePanel title={copy.catalog.loading} /> : null}
       {tree.isError ? <StatePanel title={copy.hierarchy.error} onRetry={() => void tree.refetch()} /> : null}
       {tree.isSuccess && tree.data.length === 0 ? <StatePanel title={copy.hierarchy.empty} /> : null}

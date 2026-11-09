@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useState } from 'react';
 import { StatePanel } from '@/components/state-panel';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,9 @@ export default function SettlementPage() {
   return (
     <section>
       <h1 className="text-2xl font-semibold">{copy.settlement.title}</h1>
+      <Button asChild variant="outline" size="sm" className="mt-3">
+        <Link href="/audit-logs">{copy.settlement.audit}</Link>
+      </Button>
       <div className="mt-4 space-y-3">
         {categories.isLoading ? <StatePanel title={copy.catalog.loading} /> : null}
         {categories.isError ? <StatePanel title={copy.settlement.error} onRetry={() => void categories.refetch()} /> : null}

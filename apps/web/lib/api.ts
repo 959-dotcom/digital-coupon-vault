@@ -3,9 +3,13 @@ import { useAuth } from './auth-store';
 import type {
   BalanceView,
   CategoryView,
+  AuditPage,
+  CommissionReport,
   LedgerAudit,
   LoginResponse,
+  NotificationInbox,
   OrderReceipt,
+  OrgChartNode,
   PartnerNode,
   SelectionType,
   SettleResult,
@@ -96,6 +100,25 @@ export const api = {
   },
   hierarchy() {
     return request<PartnerNode[]>('/partners/hierarchy');
+  },
+  orgChart() {
+    return request<OrgChartNode[]>('/partners/tree');
+  },
+  commissionReport(from: string, to: string) {
+    return request<CommissionReport>(`/partners/reports/commission?from=${from}&to=${to}`);
+  },
+  auditLogs(query: string, page: number) {
+    const params = new URLSearchParams({ q: query, page: String(page) });
+    return request<AuditPage>(`/admin/audit-logs?${params.toString()}`);
+  },
+  notifications() {
+    return request<NotificationInbox>('/me/notifications');
+  },
+  readNotification(id: string) {
+    return request<{ id: string; readAt: string | null }>(`/me/notifications/${id}/read`, { method: 'POST' });
+  },
+  readAllNotifications() {
+    return request<{ unread: number }>('/me/notifications/read-all', { method: 'POST' });
   },
   updateCommercial(id: string, body: { distributionMode: string; commissionRates: Record<string, string> }) {
     return request<PartnerNode>(`/partners/${id}/commercial`, { method: 'PATCH', body: JSON.stringify(body) });

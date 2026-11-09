@@ -1,12 +1,33 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, Roles } from '../auth/decorators.js';
 import { CreatePartnerDto, PartnerParamsDto, UpdateCommercialDto, UpdatePartnerDto } from './dto.js';
+import { Matches } from 'class-validator';
 import { PartnersService } from './partners.service.js';
+
+class CommissionQueryDto {
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  from!: string;
+
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  to!: string;
+}
 
 @Controller('partners')
 export class PartnersController {
   constructor(private readonly partners: PartnersService) {}
+
+  @Get('tree')
+  @Roles('SUPER_ADMIN', 'MASTER_PARTNER', 'PARTNER')
+  tree(@CurrentUser() actor: AuthUser) {
+    return this.partners.orgChart(actor);
+  }
+
+  @Get('reports/commission')
+  @Roles('SUPER_ADMIN', 'MASTER_PARTNER', 'PARTNER')
+  commission(@CurrentUser() actor: AuthUser, @Query() query: CommissionQueryDto) {
+    return this.partners.commissionReport(actor, query.from, query.to);
+  }
 
   @Get('hierarchy')
   @Roles('SUPER_ADMIN', 'MASTER_PARTNER', 'PARTNER')

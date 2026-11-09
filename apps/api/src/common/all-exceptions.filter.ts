@@ -17,6 +17,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       });
       return;
     }
+    if (exception instanceof HttpException && exception.getStatus() === 429) {
+      response.status(429).json({ statusCode: 429, message: 'RATE_LIMITED', error: 'RATE_LIMITED' });
+      return;
+    }
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();

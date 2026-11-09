@@ -2,6 +2,8 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
 import { RolesGuard } from './auth/roles.guard.js';
@@ -12,8 +14,11 @@ import { HealthController } from './health.controller.js';
 import { HmacGuard } from './hmac/hmac.guard.js';
 import { LedgerModule } from './ledger/ledger.module.js';
 import { PartnersModule } from './partners/partners.module.js';
+import { NotificationModule } from './notifications/notification.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
+import { RedisService } from './redis/redis.service.js';
+import { ORDER_LIMIT, ORDER_TTL_MS, RedisThrottlerStorage } from './redis/throttler-storage.js';
 import { VaultModule } from './vault/vault.module.js';
 
 @Module({
@@ -30,6 +35,20 @@ import { VaultModule } from './vault/vault.module.js';
     }),
     PrismaModule,
     RedisModule,
+    ThrottlerModule.forRootAsync({
+      inject: [RedisService],
+      useFactory: (redis: RedisService) => ({
+        throttlers: [{ name: 'default', ttl: ORDER_TTL_MS, limit: ORDER_LIMIT }],
+        storage: new RedisThrottlerStorage(redis.client),
+        errorMessage: 'RATE_LIMITED',
+        getTracker: (req: Record<string, unknown>) => {
+          const request = req as { user?: { userId?: string }; ip?: string };
+          return request.user?.userId ?? request.ip ?? 'anonymous';
+        },
+      }),
+    }),
+    AuditModule,
+    NotificationModule,
     VaultModule,
     AuthModule,
     CommissionModule,

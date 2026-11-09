@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { LayoutGrid, LogOut, Network, ReceiptText, Scale, Wallet } from 'lucide-react';
+import { Bell, LayoutGrid, LogOut, Network, ReceiptText, Scale, ScrollText, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -41,6 +41,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     queryFn: () => api.balance(),
     enabled: ready && Boolean(user),
   });
+  const inbox = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => api.notifications(),
+    enabled: ready && Boolean(user),
+    refetchInterval: 15_000,
+  });
 
   if (!ready || !user) {
     return <p className="px-5 py-16 text-center text-sm text-ink/60">{copy.states.loading}</p>;
@@ -48,7 +54,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const partnerNav = user.role !== 'MEMBER';
   const links = [
-    ...(user.role === 'SUPER_ADMIN' ? [{ href: '/settlement', label: copy.nav.settlement, icon: Scale }] : []),
+    ...(user.role === 'SUPER_ADMIN'
+      ? [
+          { href: '/settlement', label: copy.nav.settlement, icon: Scale },
+          { href: '/audit-logs', label: copy.nav.audit, icon: ScrollText },
+        ]
+      : []),
     ...(partnerNav ? [{ href: '/hierarchy', label: copy.nav.hierarchy, icon: Network }] : []),
     { href: '/catalog', label: copy.nav.catalog, icon: LayoutGrid },
     { href: '/orders', label: copy.nav.orders, icon: ReceiptText },
@@ -64,6 +75,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <p className="text-xs text-ink/55">{roleLabel(user.role)}</p>
         </div>
         <div className="text-right">
+          <Link href="/notifications" className="mb-1 inline-flex items-center gap-1 text-white" aria-label={copy.nav.notifications}>
+            <Bell className="h-4 w-4" />
+            <span className="min-w-5 rounded-full bg-[#dc2626] px-1.5 text-center text-[10px] font-semibold leading-4 text-white">
+              {inbox.isSuccess ? inbox.data.unread : '…'}
+            </span>
+          </Link>
           <p className="text-[11px] text-ink/55">{copy.nav.balance}</p>
           <p className="font-mono text-sm font-medium">
             {balance.isSuccess ? formatPoints(balance.data.available) : balance.isError ? '—' : '…'}

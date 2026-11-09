@@ -107,6 +107,60 @@ export type BalanceView = {
   available: string;
 };
 
+export type OrgChartNode = {
+  id: string;
+  code: string;
+  name: string;
+  parentId: string | null;
+  path: string;
+  distributionMode: 'COMMISSION_ONLY' | 'FULL_PASS' | 'SPLIT_KEEP';
+  commissionRates: Record<string, string>;
+  isActive: boolean;
+  childPartnerCount: number;
+  activeMemberCount: number;
+  pointsFlow: string;
+  children: OrgChartNode[];
+};
+
+export type CommissionReport = {
+  from: string;
+  to: string;
+  total: string;
+  byDay: Array<{ date: string; amount: string }>;
+  byBatch: Array<{ batchId: string; label: string; categoryName: string; amount: string }>;
+};
+
+export type AuditRow = {
+  id: string;
+  actorId: string | null;
+  action: string;
+  target: string;
+  detail: unknown;
+  createdAt: string;
+};
+
+export type AuditPage = {
+  page: number;
+  pageSize: number;
+  total: number;
+  query: string;
+  rows: AuditRow[];
+};
+
+export type NotificationRow = {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type NotificationInbox = {
+  unread: number;
+  rows: NotificationRow[];
+};
+
 export type PartnerNode = {
   id: string;
   code: string;
