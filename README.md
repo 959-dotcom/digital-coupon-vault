@@ -20,7 +20,7 @@ The API and the Next.js server both read the repository-root `.env`. `HMAC_SECRE
 ## Run
 
 ```bash
-docker compose up -d
+docker compose --profile local up -d
 npm install
 npm run prisma:generate
 npm run prisma:migrate
@@ -31,6 +31,8 @@ npm run dev:web
 
 - API: `http://127.0.0.1:4000`
 - Web: `http://localhost:3000`
+
+The `local` profile starts Postgres 16 (with `ltree`) and Redis. Production deploy is in `DEPLOY.md`.
 
 Seed accounts (password is `SEED_PASSWORD`):
 

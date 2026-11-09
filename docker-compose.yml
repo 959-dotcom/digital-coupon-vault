@@ -1,5 +1,9 @@
+# local: Postgres 16 and Redis. production: Redis, API, batch worker, and web.
+# Postgres is not part of production; set DATABASE_URL to the external database.
+
 services:
   postgres:
+    profiles: ["local"]
     image: postgres:16
     environment:
       POSTGRES_USER: coupon
@@ -17,6 +21,7 @@ services:
       retries: 20
 
   redis:
+    profiles: ["local", "production"]
     image: redis:7-alpine
     ports:
       - "6379:6379"
@@ -30,12 +35,14 @@ services:
       retries: 20
 
   api:
+    profiles: ["production"]
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    command: ["node", "dist/main.js"]
     environment:
-      DATABASE_URL: postgresql://coupon:coupon@postgres:5432/coupon?schema=public
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       API_PORT: "4000"
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       JWT_SECRET: ${JWT_SECRET:-}
@@ -46,8 +53,6 @@ services:
     ports:
       - "4000:4000"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -65,28 +70,33 @@ services:
     restart: unless-stopped
 
   worker:
+    profiles: ["production"]
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    command: ["sh", "-c", "npx prisma migrate deploy && node dist/workers/batch.worker.js"]
+    command: ["node", "dist/workers/batch.worker.js"]
     environment:
-      DATABASE_URL: postgresql://coupon:coupon@postgres:5432/coupon?schema=public
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       JWT_SECRET: ${JWT_SECRET:-}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
       SERVER_VAULT_SECRET: ${SERVER_VAULT_SECRET:-}
       HMAC_SECRET: ${HMAC_SECRET:-}
     depends_on:
+      redis:
+        condition: service_healthy
       api:
         condition: service_healthy
     restart: unless-stopped
 
   web:
+    profiles: ["production"]
     build:
       context: .
       dockerfile: apps/web/Dockerfile
     environment:
-      API_INTERNAL_URL: http://api:4000
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:4000}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
       HMAC_SECRET: ${HMAC_SECRET:-}
       PORT: "3000"
     ports:
