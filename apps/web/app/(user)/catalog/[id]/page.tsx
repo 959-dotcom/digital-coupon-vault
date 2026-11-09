@@ -2,9 +2,10 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Decimal } from 'decimal.js';
-import { Minus, Plus, ShieldCheck } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { DigitMatrix } from '@/components/digit-matrix';
 import { StatePanel } from '@/components/state-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,10 +14,12 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ApiError, api } from '@/lib/api';
 import { copy, statusLabel } from '@/lib/copy';
 import { formatPoints } from '@/lib/money';
-import type { OrderReceipt } from '@/lib/types';
+import type { OrderReceipt, SelectionType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type Line = { quantity: string };
+type Family = 'TOP_3' | 'PERM_3' | 'TOP_2' | 'BOTTOM_2' | 'FLOAT';
+type FloatType = 'SINGLE_TOP' | 'SINGLE_BOTTOM' | 'RUNNING_MIX';
+type SlipLine = { type: SelectionType; number: string; amount: string };
 
 export default function CatalogDeskPage() {
   const params = useParams<{ id: string }>();
@@ -25,51 +28,51 @@ export default function CatalogDeskPage() {
     queryKey: ['category', params.id],
     queryFn: () => api.category(params.id),
   });
+  const [open, setOpen] = useState(true);
+  const [family, setFamily] = useState<Family>('TOP_3');
+  const [floatType, setFloatType] = useState<FloatType>('RUNNING_MIX');
+  const [digits, setDigits] = useState('');
   const [stake, setStake] = useState<string | null>(null);
-  const [lines, setLines] = useState<Record<string, Line>>({});
+  const [lines, setLines] = useState<SlipLine[]>([]);
   const [receipt, setReceipt] = useState<OrderReceipt | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const pad = category.data?.pad ?? 3;
+  const selectionType: SelectionType = family === 'FLOAT' ? floatType : family;
+  const length = digitLength(selectionType);
   const activeStake = stake ?? category.data?.stakeAmounts[0] ?? null;
   const batch = category.data?.batches.find((item) => item.isOpen && !item.pastCutoff) ?? null;
-  const numbers = useMemo(() => {
-    if (!category.data) {
-      return [];
+  useEffect(() => {
+    if (pad < 3 && (family === 'TOP_3' || family === 'PERM_3')) {
+      setFamily(pad >= 2 ? 'TOP_2' : 'FLOAT');
+      setDigits('');
     }
-    const values: string[] = [];
-    for (let index = category.data.gridMin; index <= category.data.gridMax; index += 1) {
-      values.push(String(index).padStart(category.data.pad, '0'));
-    }
-    return values;
-  }, [category.data]);
+  }, [pad, family]);
 
-  const total = useMemo(() => {
-    if (!activeStake) {
-      return '0.0000';
-    }
-    return Object.values(lines)
-      .reduce((sum, line) => sum.plus(new Decimal(line.quantity).mul(activeStake)), new Decimal(0))
-      .toFixed(4);
-  }, [lines, activeStake]);
+  const total = useMemo(
+    () => lines.reduce((sum, line) => sum.plus(line.amount), new Decimal(0)).toFixed(4),
+    [lines],
+  );
 
   const order = useMutation({
     mutationFn: async () => {
-      if (!category.data || !batch || !activeStake) {
+      if (!category.data || !batch) {
         throw new ApiError(400, copy.desk.noBatch);
       }
-      const items = Object.entries(lines).map(([sku, line]) => ({
-        type: category.data.pad >= 3 ? ('TOP_3' as const) : ('TOP_2' as const),
-        number: sku,
-        amount: new Decimal(line.quantity).mul(activeStake).toFixed(4),
-      }));
       return api.order(
-        { categoryId: category.data.id, batchId: batch.id, items },
+        {
+          categoryId: category.data.id,
+          batchId: batch.id,
+          items: lines.map((line) => ({ type: line.type, number: line.number, amount: line.amount })),
+        },
         crypto.randomUUID(),
       );
     },
     onSuccess: async (result) => {
       setReceipt(result);
-      setLines({});
+      setLines([]);
+      setDigits('');
+      setOpen(false);
       setFormError(null);
       await queryClient.invalidateQueries({ queryKey: ['balance'] });
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -79,34 +82,28 @@ export default function CatalogDeskPage() {
     },
   });
 
-  function toggle(sku: string) {
-    setLines((current) => {
-      if (current[sku]) {
-        const next = { ...current };
-        delete next[sku];
-        return next;
-      }
-      return { ...current, [sku]: { quantity: '1' } };
-    });
+  function chooseFamily(next: Family) {
+    setFamily(next);
+    setDigits('');
+    setFormError(null);
   }
 
-  function changeQuantity(sku: string, direction: 1 | -1) {
+  function addLine() {
+    if (!category.data || !activeStake) {
+      return;
+    }
+    if (digits.length !== length || length > category.data.pad) {
+      setFormError(copy.selection.badNumber);
+      return;
+    }
+    setFormError(null);
     setLines((current) => {
-      const line = current[sku];
-      if (!line) {
-        return current;
-      }
-      const nextQuantity = new Decimal(line.quantity).plus(direction);
-      if (nextQuantity.lte(0)) {
-        const next = { ...current };
-        delete next[sku];
-        return next;
-      }
-      if (nextQuantity.gt(9999)) {
-        return current;
-      }
-      return { ...current, [sku]: { quantity: nextQuantity.toFixed(0) } };
+      const previous = current.find((line) => line.type === selectionType && line.number === digits);
+      const amount = previous ? new Decimal(previous.amount).plus(activeStake).toFixed(4) : activeStake;
+      const rest = current.filter((line) => !(line.type === selectionType && line.number === digits));
+      return [...rest, { type: selectionType, number: digits, amount }];
     });
+    setDigits('');
   }
 
   if (category.isLoading) {
@@ -140,7 +137,37 @@ export default function CatalogDeskPage() {
               timeStyle: 'short',
             }).format(new Date(batch.cutoffAt))}
           </p>
-          <p className="mt-3 text-sm font-medium">{copy.desk.stake}</p>
+          <div className="mt-4 flex items-center justify-between">
+            <span className="text-sm text-ink/70">{copy.selection.total}</span>
+            <span className="font-mono text-lg font-semibold">{formatPoints(total)}</span>
+          </div>
+          <Button className="mt-4 w-full" onClick={() => setOpen(true)}>
+            {copy.catalog.pick}
+          </Button>
+        </Card>
+      ) : null}
+
+      <Dialog open={open && Boolean(batch)} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogTitle>{copy.selection.title}</DialogTitle>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <ModeButton label={copy.selection.exact3} active={family === 'TOP_3'} disabled={pad < 3} onClick={() => chooseFamily('TOP_3')} />
+            <ModeButton label={copy.selection.perm} active={family === 'PERM_3'} disabled={pad < 3} onClick={() => chooseFamily('PERM_3')} />
+            <ModeButton label={copy.selection.top2} active={family === 'TOP_2'} disabled={pad < 2} onClick={() => chooseFamily('TOP_2')} />
+            <ModeButton label={copy.selection.bottom2} active={family === 'BOTTOM_2'} disabled={pad < 2} onClick={() => chooseFamily('BOTTOM_2')} />
+            <ModeButton label={copy.selection.float} active={family === 'FLOAT'} disabled={pad < 1} onClick={() => chooseFamily('FLOAT')} />
+          </div>
+          {family === 'FLOAT' ? (
+            <div className="mt-2 flex gap-2">
+              <ModeButton label={copy.selection.floatTop} active={floatType === 'SINGLE_TOP'} onClick={() => setFloatType('SINGLE_TOP')} />
+              <ModeButton label={copy.selection.floatBottom} active={floatType === 'SINGLE_BOTTOM'} onClick={() => setFloatType('SINGLE_BOTTOM')} />
+              <ModeButton label={copy.selection.floatMix} active={floatType === 'RUNNING_MIX'} onClick={() => setFloatType('RUNNING_MIX')} />
+            </div>
+          ) : null}
+          <div className="mt-4">
+            <DigitMatrix length={length} value={digits} onChange={setDigits} />
+          </div>
+          <p className="mt-4 text-sm font-medium">{copy.desk.stake}</p>
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
             {category.data.stakeAmounts.map((amount) => (
               <button
@@ -149,78 +176,39 @@ export default function CatalogDeskPage() {
                 onClick={() => setStake(amount)}
                 className={cn(
                   'shrink-0 rounded-full border px-3 py-2 font-mono text-sm',
-                  (stake ?? category.data?.stakeAmounts[0]) === amount
-                    ? 'border-pine bg-pine text-white'
-                    : 'border-line bg-card text-white',
+                  activeStake === amount ? 'border-pine bg-pine text-white' : 'border-line bg-card text-white',
                 )}
               >
                 {formatPoints(amount)}
               </button>
             ))}
           </div>
-          <div className="mt-4 grid grid-cols-5 gap-2 sm:grid-cols-10">
-            {numbers.map((sku) => {
-              const selected = Boolean(lines[sku]);
-              return (
-                <button
-                  key={sku}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => toggle(sku)}
-                  className={cn(
-                    'h-11 rounded-xl border font-mono text-sm',
-                    selected ? 'border-brass bg-brass text-white' : 'border-line bg-paper text-white',
-                  )}
-                >
-                  {sku}
-                </button>
-              );
-            })}
-          </div>
-        </Card>
-      ) : null}
-
-      <Card className="p-4">
-        <h2 className="text-sm font-semibold">{copy.desk.selected}</h2>
-        {Object.keys(lines).length === 0 ? <p className="mt-3 text-sm text-ink/60">{copy.desk.emptySelection}</p> : null}
-        <ul className="mt-3 space-y-2">
-          {Object.entries(lines)
-            .sort(([left], [right]) => left.localeCompare(right))
-            .map(([sku, line]) => (
-              <li key={sku} className="flex items-center justify-between gap-2 rounded-2xl bg-paper px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">
-                    {copy.desk.number} {sku}
-                  </p>
-                  <p className="font-mono text-xs text-ink/55">{activeStake ? formatPoints(activeStake) : ''}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button type="button" size="icon" variant="outline" aria-label={copy.desk.remove} onClick={() => changeQuantity(sku, -1)}>
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="w-8 text-center font-mono text-sm">{line.quantity}</span>
-                  <Button type="button" size="icon" variant="outline" aria-label={copy.desk.quantity} onClick={() => changeQuantity(sku, 1)}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
+          <Button type="button" variant="outline" className="mt-3 w-full" onClick={addLine}>
+            {copy.selection.add}
+          </Button>
+          <ul className="mt-4 space-y-2">
+            {lines.length === 0 ? <li className="text-sm text-ink/60">{copy.selection.empty}</li> : null}
+            {lines.map((line) => (
+              <li key={`${line.type}:${line.number}`} className="flex justify-between gap-3 text-sm">
+                <span>
+                  {modeLabel(line.type)} {line.number}
+                </span>
+                <span className="font-mono">{formatPoints(line.amount)}</span>
               </li>
             ))}
-        </ul>
-        <div className="mt-4 flex items-center justify-between">
-          <span className="text-sm text-ink/70">{copy.desk.total}</span>
-          <span className="font-mono text-lg font-semibold">{formatPoints(total)}</span>
-        </div>
-        {formError ? <p className="mt-3 rounded-2xl bg-danger-soft px-3 py-2 text-sm text-danger">{formError}</p> : null}
-        <Button
-          className="mt-4 w-full"
-          disabled={!batch || Object.keys(lines).length === 0 || order.isPending}
-          onClick={() => order.mutate()}
-        >
-          {order.isPending ? copy.desk.submitting : copy.desk.submit}
-        </Button>
-      </Card>
+          </ul>
+          <div className="mt-4 flex items-center justify-between">
+            <span className="text-sm text-ink/70">{copy.selection.total}</span>
+            <span className="font-mono text-lg font-semibold">{formatPoints(total)}</span>
+          </div>
+          {formError ? <p className="mt-3 rounded-2xl bg-danger-soft px-3 py-2 text-sm text-danger">{formError}</p> : null}
+          <Button className="mt-4 w-full" disabled={!batch || lines.length === 0 || order.isPending} onClick={() => order.mutate()}>
+            {order.isPending ? copy.desk.submitting : copy.desk.submit}
+          </Button>
+        </DialogContent>
+      </Dialog>
 
-      <Dialog open={Boolean(receipt)} onOpenChange={(open) => !open && setReceipt(null)}>
+      <Dialog open={Boolean(receipt)} onOpenChange={(next) => !next && setReceipt(null)}>
         <DialogContent>
           {receipt ? (
             <div>
@@ -257,7 +245,7 @@ export default function CatalogDeskPage() {
                 {receipt.items.map((item) => (
                   <li key={`${item.type}:${item.number}`} className="flex justify-between gap-3">
                     <span>
-                      {item.type} {item.number}
+                      {modeLabel(item.type)} {item.number}
                     </span>
                     <span className="font-mono">{formatPoints(item.amount)}</span>
                   </li>
@@ -270,4 +258,51 @@ export default function CatalogDeskPage() {
       </Dialog>
     </section>
   );
+}
+
+function ModeButton({
+  label,
+  active,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'rounded-2xl border px-3 py-3 text-sm text-white disabled:opacity-40',
+        active ? 'border-[#dc2626] bg-[#dc2626]' : 'border-line bg-[#0a0a0a]',
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function digitLength(type: SelectionType): number {
+  if (type === 'TOP_3' || type === 'PERM_3') {
+    return 3;
+  }
+  if (type === 'TOP_2' || type === 'BOTTOM_2') {
+    return 2;
+  }
+  return 1;
+}
+
+function modeLabel(type: string): string {
+  if (type === 'TOP_3') return copy.selection.exact3;
+  if (type === 'PERM_3') return copy.selection.perm;
+  if (type === 'TOP_2') return copy.selection.top2;
+  if (type === 'BOTTOM_2') return copy.selection.bottom2;
+  if (type === 'SINGLE_TOP') return copy.selection.floatTop;
+  if (type === 'SINGLE_BOTTOM') return copy.selection.floatBottom;
+  if (type === 'RUNNING_MIX') return copy.selection.floatMix;
+  return type;
 }

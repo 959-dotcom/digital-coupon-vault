@@ -47,6 +47,8 @@ export const copy = {
     floatMix: 'วิ่งผสม',
     number: 'หมายเลข',
     add: 'เพิ่มรายการ',
+    clear: 'ล้าง',
+    deleteDigit: 'ลบ',
     badNumber: 'จำนวนหลักไม่ตรงกับประเภทที่เลือก',
     total: 'แต้มรวม',
     empty: 'ยังไม่มีรายการในใบสั่งซื้อ',

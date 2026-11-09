@@ -7,8 +7,8 @@ import { StatePanel } from '@/components/state-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { DigitMatrix } from '@/components/digit-matrix';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { ApiError, api } from '@/lib/api';
 import { copy, statusLabel } from '@/lib/copy';
 import { formatPoints } from '@/lib/money';
@@ -161,17 +161,9 @@ function SelectionModal({ category, onClose }: { category: CategoryView | null; 
                 <TypeButton active={floatType === 'RUNNING_MIX'} label={copy.selection.floatMix} onClick={() => setFloatType('RUNNING_MIX')} />
               </div>
             ) : null}
-            <label className="mt-4 block text-sm font-medium" htmlFor="selection-number">
-              {copy.selection.number}
-            </label>
-            <Input
-              id="selection-number"
-              inputMode="numeric"
-              maxLength={digits}
-              value={number}
-              onChange={(event) => setNumber(event.target.value.replace(/\D/g, '').slice(0, digits))}
-              className="mt-1 font-mono"
-            />
+            <div className="mt-4">
+              <DigitMatrix length={digits} value={number} onChange={setNumber} />
+            </div>
             <div className="mt-3 flex gap-2 overflow-x-auto">
               {category.stakeAmounts.map((amount) => (
                 <button
