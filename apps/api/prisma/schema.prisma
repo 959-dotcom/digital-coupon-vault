@@ -161,7 +161,7 @@ model Withdrawal {
   user        User     @relation(fields: [userId], references: [id])
   amount      Decimal  @db.Decimal(15, 4)
   destination String
-  status      String   @default("ACCEPTED")
+  status      String   @default("PENDING")
   createdAt   DateTime @default(now())
 
   @@index([userId, createdAt])

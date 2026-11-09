@@ -6,7 +6,13 @@ import { PrismaService } from '../prisma/prisma.service.js';
 
 export type AuditInput = {
   actorId: string | null;
-  action: 'LEDGER_ADJUSTMENT' | 'BATCH_SETTLEMENT' | 'COMMISSION_RATE_UPDATE' | 'ADMIN_LOGIN';
+  action:
+    | 'LEDGER_ADJUSTMENT'
+    | 'BATCH_SETTLEMENT'
+    | 'ORACLE_SETTLEMENT'
+    | 'WITHDRAWAL_DECISION'
+    | 'COMMISSION_RATE_UPDATE'
+    | 'ADMIN_LOGIN';
   target: string;
   detail: Prisma.InputJsonValue;
 };

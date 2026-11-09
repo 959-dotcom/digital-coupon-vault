@@ -17,6 +17,7 @@ export const copy = {
     flow: 'ประวัติแต้ม',
     hierarchy: 'สายงาน',
     settlement: 'ตรวจผล',
+    withdrawals: 'คิวถอน',
     audit: 'บันทึกตรวจ',
     notifications: 'การแจ้งเตือน',
     logout: 'ออกจากระบบ',
@@ -54,6 +55,7 @@ export const copy = {
     deleteDigit: 'ลบ',
     badNumber: 'จำนวนหลักไม่ตรงกับประเภทที่เลือก',
     total: 'แต้มรวม',
+    liveTotal: 'แต้มรวมตอนนี้',
     empty: 'ยังไม่มีรายการในใบสั่งซื้อ',
   },
   settlement: {
@@ -107,9 +109,11 @@ export const copy = {
     amount: 'จำนวนแต้ม',
     destination: 'บัญชีรับเงิน',
     destinationHint: 'เลขพร้อมเพย์หรือเลขบัญชีธนาคาร',
-    submit: 'ยืนยันถอนแต้ม',
-    submitting: 'กำลังถอน',
-    done: 'ถอนแต้มแล้ว',
+    submit: 'ส่งคำขอถอน',
+    submitting: 'กำลังส่งคำขอ',
+    done: 'ส่งคำขอแล้ว รอผู้ดูแลตรวจสอบ',
+    requests: 'คำขอถอน',
+    requestsEmpty: 'ยังไม่มีคำขอถอน',
     badAmount: 'กรอกจำนวนแต้มที่มากกว่าศูนย์',
   },
   orders: {
@@ -178,6 +182,8 @@ export const copy = {
     actions: {
       LEDGER_ADJUSTMENT: 'ปรับสมุดบัญชี',
       BATCH_SETTLEMENT: 'ปิดงวดและจ่ายรางวัล',
+      ORACLE_SETTLEMENT: 'ปิดงวดจากแหล่งผลรางวัล',
+      WITHDRAWAL_DECISION: 'ตรวจคำขอถอน',
       COMMISSION_RATE_UPDATE: 'แก้ค่าคอมมิชชัน',
       ADMIN_LOGIN: 'เข้าสู่ระบบผู้ดูแล',
     },
@@ -209,6 +215,9 @@ export const copy = {
   },
   status: {
     PENDING: 'รอดำเนินการ',
+    APPROVED: 'อนุมัติแล้ว',
+    REJECTED: 'ปฏิเสธแล้ว',
+    ACCEPTED: 'รับแล้ว',
     CONFIRMED: 'ยืนยันแล้ว',
     SETTLED: 'ชำระแล้ว',
     CANCELLED_SYSTEM: 'ยกเลิกโดยระบบ',
@@ -243,6 +252,16 @@ export const copy = {
     closed: 'หมวดหรือวงปิดรับแล้ว',
     wallet: 'ระบบกำลังปรับยอด กรุณาลองอีกครั้ง',
   },
+  queue: {
+    title: 'คิวถอนแต้ม',
+    empty: 'ไม่มีคำขอที่รอตรวจ',
+    error: 'โหลดคิวไม่สำเร็จ',
+    forbidden: 'เฉพาะผู้ดูแลระบบที่อนุมัติการถอนได้',
+    approve: 'อนุมัติ',
+    reject: 'ปฏิเสธ',
+    member: 'สมาชิก',
+    conflict: 'คำขอนี้ถูกตรวจไปแล้ว',
+  },
   states: {
     loading: 'กำลังโหลด',
     notFound: 'ไม่พบหน้านี้',
@@ -273,6 +292,7 @@ const errorMap: Record<string, string> = {
   PARTNER_INACTIVE: copy.errors.closed,
   USER_INACTIVE: copy.errors.forbidden,
   ORDER_CANCELLED: copy.errors.generic,
+  CONFLICT: copy.queue.conflict,
 };
 
 export function translateError(message: unknown): string {

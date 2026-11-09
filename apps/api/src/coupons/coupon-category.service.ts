@@ -48,11 +48,29 @@ export class CouponCategoryService {
   }
 
   async settle(actor: AuthUser, dto: SettleBatchDto) {
-    const outcome: Outcome = { top3: dto.top3, bottom2: dto.bottom2 };
+    return this.settleVerified({
+      batchId: dto.batchId,
+      top3: dto.top3,
+      bottom2: dto.bottom2,
+      actorId: actor.userId,
+      action: 'BATCH_SETTLEMENT',
+    });
+  }
+
+  async settleVerified(input: {
+    batchId: string;
+    top3: string;
+    bottom2: string;
+    actorId: string | null;
+    action: 'BATCH_SETTLEMENT' | 'ORACLE_SETTLEMENT';
+    outcomeExtra?: Record<string, string>;
+    detail?: Record<string, string | number | boolean | null>;
+  }) {
+    const outcome: Outcome = { top3: input.top3, bottom2: input.bottom2 };
     const payoutRows = await this.prisma.$transaction(
       async (tx) => {
         const batch = await tx.couponBatch.findUnique({
-          where: { id: dto.batchId },
+          where: { id: input.batchId },
           include: { category: true },
         });
         if (!batch) {
@@ -95,21 +113,27 @@ export class CouponCategoryService {
             })),
           });
         }
+        const stored = { ...outcome, ...(input.outcomeExtra ?? {}) };
         await tx.couponBatch.update({
           where: { id: batch.id },
           data: {
             isOpen: false,
             settledAt: new Date(),
-            outcome: outcome as Prisma.InputJsonValue,
+            outcome: stored as Prisma.InputJsonValue,
           },
         });
         const credited = payouts.map((payout) => ({ userId: payout.userId, amount: formatMoney(payout.amount) }));
         await this.notifications.recordWins(tx, batch.id, credited);
         await this.audit.append(tx, {
-          actorId: actor.userId,
-          action: 'BATCH_SETTLEMENT',
+          actorId: input.actorId,
+          action: input.action,
           target: batch.id,
-          detail: { top3: outcome.top3, bottom2: outcome.bottom2, payouts: credited.length },
+          detail: {
+            top3: outcome.top3,
+            bottom2: outcome.bottom2,
+            payouts: credited.length,
+            ...(input.detail ?? {}),
+          },
         });
         return credited;
       },
@@ -119,7 +143,7 @@ export class CouponCategoryService {
       await this.wallet.credit(payout.userId, moneyFromDatabase(payout.amount));
     }
     return {
-      batchId: dto.batchId,
+      batchId: input.batchId,
       settled: true,
       outcome,
       payouts: payoutRows,

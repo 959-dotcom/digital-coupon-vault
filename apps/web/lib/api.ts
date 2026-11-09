@@ -16,6 +16,7 @@ import type {
   PointLine,
   TransactionView,
   WithdrawalView,
+  AdminWithdrawal,
 } from './types';
 
 export class ApiError extends Error {
@@ -94,6 +95,15 @@ export const api = {
   },
   withdraw(body: { amount: string; destination: string }) {
     return request<WithdrawalView>('/me/withdrawals', { method: 'POST', body: JSON.stringify(body) });
+  },
+  adminWithdrawals() {
+    return request<AdminWithdrawal[]>('/admin/withdrawals');
+  },
+  approveWithdrawal(id: string) {
+    return request<WithdrawalView>(`/admin/withdrawals/${id}/approve`, { method: 'POST' });
+  },
+  rejectWithdrawal(id: string) {
+    return request<WithdrawalView>(`/admin/withdrawals/${id}/reject`, { method: 'POST' });
   },
   pointLedger() {
     return request<PointLine[]>('/me/ledger');

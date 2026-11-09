@@ -1,9 +1,12 @@
-# Example only. Replace api.example.com. Proxies the public API host to the
-# Compose API on port 4000. Certificates are configured outside this file.
+# Example for api.db357.com. Listens on 443 and proxies to the Compose API
+# on port 4000. Point the certificate files at the real certs on the host.
 
 server {
-  listen 80;
-  server_name api.example.com;
+  listen 443 ssl;
+  server_name api.db357.com;
+
+  ssl_certificate     /etc/nginx/certs/api.db357.com.crt;
+  ssl_certificate_key /etc/nginx/certs/api.db357.com.key;
 
   location / {
     proxy_pass http://127.0.0.1:4000;

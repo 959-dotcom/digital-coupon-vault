@@ -11,7 +11,7 @@ import { DigitMatrix } from '@/components/digit-matrix';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ApiError, api } from '@/lib/api';
 import { copy, statusLabel } from '@/lib/copy';
-import { formatPoints } from '@/lib/money';
+import { PRESET_STAKES, formatPoints, livePointsTotal } from '@/lib/money';
 import type { CategoryGroup, CategoryView, OrderReceipt, SelectionType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -94,11 +94,11 @@ function SelectionModal({ category, onClose }: { category: CategoryView | null; 
 
   const selectionType: SelectionType = family === 'FLOAT' ? floatType : family;
   const digits = selectionType === 'TOP_3' || selectionType === 'PERM_3' ? 3 : selectionType === 'TOP_2' || selectionType === 'BOTTOM_2' ? 2 : 1;
-  const activeStake = stake ?? category?.stakeAmounts[0] ?? null;
+  const activeStake = stake ?? PRESET_STAKES[0];
   const batch = category?.batches.find((item) => item.isOpen && !item.pastCutoff && !item.settled) ?? null;
-  const total = useMemo(
-    () => lines.reduce((sum, line) => sum.plus(line.amount), new Decimal(0)).toFixed(4),
-    [lines],
+  const liveTotal = useMemo(
+    () => livePointsTotal(lines, number.length === digits && activeStake ? activeStake : null),
+    [lines, number.length, digits, activeStake],
   );
 
   const order = useMutation({
@@ -165,19 +165,23 @@ function SelectionModal({ category, onClose }: { category: CategoryView | null; 
               <DigitMatrix length={digits} value={number} onChange={setNumber} />
             </div>
             <div className="mt-3 flex gap-2 overflow-x-auto">
-              {category.stakeAmounts.map((amount) => (
+              {PRESET_STAKES.map((amount) => (
                 <button
                   key={amount}
                   type="button"
                   onClick={() => setStake(amount)}
                   className={cn(
-                    'shrink-0 rounded-full border px-3 py-2 font-mono text-sm',
-                    activeStake === amount ? 'border-pine bg-pine text-white' : 'border-line bg-card text-white',
+                    'shrink-0 rounded-full border px-3 py-2 font-mono text-sm text-white',
+                    activeStake === amount ? 'border-[#dc2626] bg-[#dc2626]' : 'border-line bg-[#0a0a0a]',
                   )}
                 >
                   {formatPoints(amount)}
                 </button>
               ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-sm text-ink/70">{copy.selection.liveTotal}</span>
+              <span className="font-mono text-lg font-semibold">{formatPoints(liveTotal)}</span>
             </div>
             <Button type="button" className="mt-3 w-full" variant="outline" onClick={addLine}>
               {copy.selection.add}
@@ -194,8 +198,8 @@ function SelectionModal({ category, onClose }: { category: CategoryView | null; 
               ))}
             </ul>
             <div className="mt-4 flex items-center justify-between">
-              <span className="text-sm text-ink/70">{copy.selection.total}</span>
-              <span className="font-mono text-lg font-semibold">{formatPoints(total)}</span>
+              <span className="text-sm text-ink/70">{copy.selection.liveTotal}</span>
+              <span className="font-mono text-lg font-semibold">{formatPoints(liveTotal)}</span>
             </div>
             {formError ? <p className="mt-3 rounded-2xl bg-danger-soft px-3 py-2 text-sm text-danger">{formError}</p> : null}
             <Button className="mt-4 w-full" disabled={!batch || lines.length === 0 || order.isPending} onClick={() => order.mutate()}>

@@ -1,0 +1,1 @@
+ALTER TABLE "Withdrawal" ALTER COLUMN "status" SET DEFAULT 'PENDING';

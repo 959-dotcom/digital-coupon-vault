@@ -13,7 +13,7 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ApiError, api } from '@/lib/api';
 import { copy, statusLabel } from '@/lib/copy';
-import { formatPoints } from '@/lib/money';
+import { PRESET_STAKES, formatPoints, livePointsTotal } from '@/lib/money';
 import type { OrderReceipt, SelectionType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -40,7 +40,7 @@ export default function CatalogDeskPage() {
   const pad = category.data?.pad ?? 3;
   const selectionType: SelectionType = family === 'FLOAT' ? floatType : family;
   const length = digitLength(selectionType);
-  const activeStake = stake ?? category.data?.stakeAmounts[0] ?? null;
+  const activeStake = stake ?? PRESET_STAKES[0];
   const batch = category.data?.batches.find((item) => item.isOpen && !item.pastCutoff) ?? null;
   useEffect(() => {
     if (pad < 3 && (family === 'TOP_3' || family === 'PERM_3')) {
@@ -49,9 +49,9 @@ export default function CatalogDeskPage() {
     }
   }, [pad, family]);
 
-  const total = useMemo(
-    () => lines.reduce((sum, line) => sum.plus(line.amount), new Decimal(0)).toFixed(4),
-    [lines],
+  const liveTotal = useMemo(
+    () => livePointsTotal(lines, digits.length === length && activeStake ? activeStake : null),
+    [lines, digits.length, length, activeStake],
   );
 
   const order = useMutation({
@@ -138,8 +138,8 @@ export default function CatalogDeskPage() {
             }).format(new Date(batch.cutoffAt))}
           </p>
           <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-ink/70">{copy.selection.total}</span>
-            <span className="font-mono text-lg font-semibold">{formatPoints(total)}</span>
+            <span className="text-sm text-ink/70">{copy.selection.liveTotal}</span>
+            <span className="font-mono text-lg font-semibold">{formatPoints(liveTotal)}</span>
           </div>
           <Button className="mt-4 w-full" onClick={() => setOpen(true)}>
             {copy.catalog.pick}
@@ -169,19 +169,23 @@ export default function CatalogDeskPage() {
           </div>
           <p className="mt-4 text-sm font-medium">{copy.desk.stake}</p>
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-            {category.data.stakeAmounts.map((amount) => (
+            {PRESET_STAKES.map((amount) => (
               <button
                 key={amount}
                 type="button"
                 onClick={() => setStake(amount)}
                 className={cn(
-                  'shrink-0 rounded-full border px-3 py-2 font-mono text-sm',
-                  activeStake === amount ? 'border-pine bg-pine text-white' : 'border-line bg-card text-white',
+                  'shrink-0 rounded-full border px-3 py-2 font-mono text-sm text-white',
+                  activeStake === amount ? 'border-[#dc2626] bg-[#dc2626]' : 'border-line bg-[#0a0a0a]',
                 )}
               >
                 {formatPoints(amount)}
               </button>
             ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-sm text-ink/70">{copy.selection.liveTotal}</span>
+            <span className="font-mono text-lg font-semibold">{formatPoints(liveTotal)}</span>
           </div>
           <Button type="button" variant="outline" className="mt-3 w-full" onClick={addLine}>
             {copy.selection.add}
@@ -198,8 +202,8 @@ export default function CatalogDeskPage() {
             ))}
           </ul>
           <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-ink/70">{copy.selection.total}</span>
-            <span className="font-mono text-lg font-semibold">{formatPoints(total)}</span>
+            <span className="text-sm text-ink/70">{copy.selection.liveTotal}</span>
+            <span className="font-mono text-lg font-semibold">{formatPoints(liveTotal)}</span>
           </div>
           {formError ? <p className="mt-3 rounded-2xl bg-danger-soft px-3 py-2 text-sm text-danger">{formError}</p> : null}
           <Button className="mt-4 w-full" disabled={!batch || lines.length === 0 || order.isPending} onClick={() => order.mutate()}>

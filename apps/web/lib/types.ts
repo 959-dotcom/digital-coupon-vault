@@ -92,6 +92,11 @@ export type WithdrawalView = {
   createdAt: string;
 };
 
+export type AdminWithdrawal = WithdrawalView & {
+  member: string;
+  email: string;
+};
+
 export type PointLine = {
   id: string;
   accountCode: string;

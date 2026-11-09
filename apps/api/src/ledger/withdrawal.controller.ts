@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { AuthUser } from '../auth/auth-user.js';
-import { CurrentUser } from '../auth/decorators.js';
+import { CurrentUser, Roles } from '../auth/decorators.js';
 import { WITHDRAWAL_LIMIT, WITHDRAWAL_TTL_MS } from '../redis/throttler-storage.js';
-import { CreateWithdrawalDto } from './dto.js';
+import { CreateWithdrawalDto, WithdrawalIdDto } from './dto.js';
 import { WithdrawalService } from './withdrawal.service.js';
 
 @Controller()
@@ -25,5 +25,23 @@ export class WithdrawalController {
   @Get('me/ledger')
   ledger(@CurrentUser() actor: AuthUser) {
     return this.withdrawals.ledger(actor);
+  }
+
+  @Get('admin/withdrawals')
+  @Roles('SUPER_ADMIN')
+  queue(@CurrentUser() actor: AuthUser) {
+    return this.withdrawals.queue(actor);
+  }
+
+  @Post('admin/withdrawals/:id/approve')
+  @Roles('SUPER_ADMIN')
+  approve(@CurrentUser() actor: AuthUser, @Param() params: WithdrawalIdDto) {
+    return this.withdrawals.approve(actor, params.id);
+  }
+
+  @Post('admin/withdrawals/:id/reject')
+  @Roles('SUPER_ADMIN')
+  reject(@CurrentUser() actor: AuthUser, @Param() params: WithdrawalIdDto) {
+    return this.withdrawals.reject(actor, params.id);
   }
 }

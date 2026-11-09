@@ -1,14 +1,18 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bullmq';
+import { DomainError } from '../common/domain-error.js';
 import { cutoffInstant, formatCalendarDate } from '../cutoff/cutoff.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { CouponCategoryService } from './coupon-category.service.js';
 import { cutoffForSlot, nextSession, parseSchedule } from './schedule.js';
+import { drawYeekeeOutcome } from './yeekee-outcome.js';
 
 @Injectable()
 export class YeekeeBatchScheduler implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly categories: CouponCategoryService,
     @InjectQueue('yeekee-batches') private readonly queue: Queue,
   ) {}
 
@@ -27,16 +31,30 @@ export class YeekeeBatchScheduler implements OnModuleInit {
       return;
     }
     const schedule = parseSchedule(category.schedule);
-    const open = await this.prisma.couponBatch.findMany({
-      where: { categoryId: category.id, isOpen: true, settledAt: null },
+    const unsettled = await this.prisma.couponBatch.findMany({
+      where: { categoryId: category.id, settledAt: null },
     });
-    for (const batch of open) {
+    for (const batch of unsettled) {
       const cutoff = cutoffInstant(batch.batchDate, cutoffForSlot(schedule, category.cutoffTime, batch.slot));
-      if (now.getTime() >= cutoff.getTime()) {
-        await this.prisma.couponBatch.update({
-          where: { id: batch.id },
-          data: { isOpen: false },
+      if (now.getTime() < cutoff.getTime()) {
+        continue;
+      }
+      const draw = drawYeekeeOutcome();
+      try {
+        await this.categories.settleVerified({
+          batchId: batch.id,
+          top3: draw.top3,
+          bottom2: draw.bottom2,
+          actorId: null,
+          action: 'BATCH_SETTLEMENT',
+          outcomeExtra: { seedHash: draw.seedHash },
+          detail: { source: 'YEEKEE_15M', seedHash: draw.seedHash },
         });
+      } catch (error) {
+        if (error instanceof DomainError && error.code === 'BATCH_SETTLED') {
+          continue;
+        }
+        throw error;
       }
     }
     const next = nextSession(schedule, now);

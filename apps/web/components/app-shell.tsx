@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Bell, LayoutGrid, LogOut, Network, ReceiptText, Scale, ScrollText, Wallet } from 'lucide-react';
+import { Bell, HandCoins, LayoutGrid, LogOut, Network, ReceiptText, Scale, ScrollText, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -57,6 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ...(user.role === 'SUPER_ADMIN'
       ? [
           { href: '/settlement', label: copy.nav.settlement, icon: Scale },
+          { href: '/withdrawals', label: copy.nav.withdrawals, icon: HandCoins },
           { href: '/audit-logs', label: copy.nav.audit, icon: ScrollText },
         ]
       : []),

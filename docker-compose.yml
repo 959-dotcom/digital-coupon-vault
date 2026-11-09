@@ -45,6 +45,9 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       API_PORT: "4000"
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      APP_URL: ${APP_URL:-}
+      ORACLE_SOURCE_URLS: ${ORACLE_SOURCE_URLS:-}
       JWT_SECRET: ${JWT_SECRET:-}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
       SERVER_VAULT_SECRET: ${SERVER_VAULT_SECRET:-}
@@ -82,6 +85,7 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
       SERVER_VAULT_SECRET: ${SERVER_VAULT_SECRET:-}
       HMAC_SECRET: ${HMAC_SECRET:-}
+      ORACLE_SOURCE_URLS: ${ORACLE_SOURCE_URLS:-}
     depends_on:
       redis:
         condition: service_healthy

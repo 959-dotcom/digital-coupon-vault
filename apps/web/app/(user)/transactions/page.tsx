@@ -9,12 +9,13 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError, api } from '@/lib/api';
-import { copy, memoLabel } from '@/lib/copy';
+import { copy, memoLabel, statusLabel } from '@/lib/copy';
 import { formatPoints } from '@/lib/money';
 
 export default function TransactionsPage() {
   const queryClient = useQueryClient();
   const ledger = useQuery({ queryKey: ['point-ledger'], queryFn: () => api.pointLedger() });
+  const requests = useQuery({ queryKey: ['withdrawals'], queryFn: () => api.withdrawals() });
   const [amount, setAmount] = useState('');
   const [destination, setDestination] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export default function TransactionsPage() {
       setAmount('');
       setDestination('');
       await queryClient.invalidateQueries({ queryKey: ['point-ledger'] });
+      await queryClient.invalidateQueries({ queryKey: ['withdrawals'] });
       await queryClient.invalidateQueries({ queryKey: ['balance'] });
     },
     onError: (error: Error) => {
@@ -90,6 +92,23 @@ export default function TransactionsPage() {
             {withdraw.isPending ? copy.flow.submitting : copy.flow.submit}
           </Button>
         </form>
+      </Card>
+
+      <Card className="p-4">
+        <h2 className="text-lg font-semibold">{copy.flow.requests}</h2>
+        {requests.isSuccess && requests.data.length === 0 ? (
+          <p className="mt-2 text-sm text-white/60">{copy.flow.requestsEmpty}</p>
+        ) : null}
+        <ul className="mt-3 space-y-2">
+          {requests.data?.map((row) => (
+            <li key={row.id} className="flex items-center justify-between gap-3 text-sm">
+              <span>
+                {statusLabel(row.status)} · {row.destination}
+              </span>
+              <span className="font-mono">{formatPoints(row.amount)}</span>
+            </li>
+          ))}
+        </ul>
       </Card>
 
       {ledger.isLoading ? <StatePanel title={copy.catalog.loading} /> : null}
