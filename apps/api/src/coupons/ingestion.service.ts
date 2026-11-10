@@ -1,28 +1,32 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job, Queue, QueueEvents } from 'bullmq';
 import { asDomainError, DomainError, KNOWN_ERROR_CODES } from '../common/domain-error.js';
 import type { ConfirmOrderJob, OrderReceipt } from './dto.js';
+import { CouponConfirmationService } from './coupon-confirmation.service.js';
 
 @Injectable()
 export class IngestionService implements OnModuleDestroy {
-  private readonly events: QueueEvents;
+  private readonly events: QueueEvents | null;
 
   constructor(
-    @InjectQueue('coupon-ingestion') private readonly queue: Queue<ConfirmOrderJob>,
+    private readonly confirmation: CouponConfirmationService,
     config: ConfigService,
+    @Optional() @InjectQueue('coupon-ingestion') private readonly queue?: Queue<ConfirmOrderJob>,
   ) {
-    this.events = new QueueEvents('coupon-ingestion', {
-      connection: { url: config.getOrThrow<string>('REDIS_URL') },
-    });
+    const redisUrl = config.get<string>('REDIS_URL');
+    this.events = this.queue && redisUrl ? new QueueEvents('coupon-ingestion', { connection: { url: redisUrl } }) : null;
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.events.close();
+    await this.events?.close();
   }
 
   async enqueueAndWait(data: ConfirmOrderJob): Promise<OrderReceipt> {
+    if (!this.queue || !this.events) {
+      return this.confirmation.confirm(data);
+    }
     const existing = await this.queue.getJob(data.idempotencyKey);
     if (existing) {
       const state = await existing.getState();
@@ -50,6 +54,9 @@ export class IngestionService implements OnModuleDestroy {
   }
 
   private async wait(job: Job<ConfirmOrderJob>): Promise<OrderReceipt> {
+    if (!this.events) {
+      return this.confirmation.confirm(job.data);
+    }
     try {
       return (await job.waitUntilFinished(this.events, 20_000)) as OrderReceipt;
     } catch (error) {

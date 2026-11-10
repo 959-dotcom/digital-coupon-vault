@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
-const API = process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:4000';
+const API = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:4000';
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;

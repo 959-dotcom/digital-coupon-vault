@@ -1,3 +1,4 @@
+import '../load-env.js';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { CommissionModule } from '../commission/commission.module.js';
@@ -11,7 +12,7 @@ import { IngestionService } from './ingestion.service.js';
 @Module({
   imports: [
     CommissionModule,
-    BullModule.registerQueue({ name: 'coupon-ingestion' }),
+    ...(process.env.REDIS_URL ? [BullModule.registerQueue({ name: 'coupon-ingestion' })] : []),
   ],
   controllers: [CouponsController, CouponCategoryController],
   providers: [CouponsService, CouponCategoryService, CouponConfirmationService, IngestionService],

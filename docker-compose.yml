@@ -1,5 +1,4 @@
-# local: Postgres 16 and Redis. production: Redis, API, batch worker, and web.
-# Postgres is not part of production; set DATABASE_URL to the external database.
+# Local Docker only. Production runs on Vercel and Supabase. See DEPLOY.md.
 
 services:
   postgres:

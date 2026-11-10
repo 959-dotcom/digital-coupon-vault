@@ -193,6 +193,19 @@ model Notification {
   @@index([userId, createdAt])
 }
 
+model RateBucket {
+  bucket  String   @id
+  hits    Int
+  resetAt DateTime
+}
+
+model RequestNonce {
+  nonce     String   @id
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
 model LedgerEntry {
   id            String      @id @default(uuid())
   transactionId String

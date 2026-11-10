@@ -32,7 +32,7 @@ npm run dev:web
 - API: `http://127.0.0.1:4000`
 - Web: `http://localhost:3000`
 
-The `local` profile starts Postgres 16 (with `ltree`) and Redis. Production deploy is in `DEPLOY.md`.
+The `local` profile starts Postgres 16 (with `ltree`) and Redis. Production is Vercel plus Supabase, described in `DEPLOY.md`. Redis is optional and is only for local Docker.
 
 Seed accounts (password is `SEED_PASSWORD`):
 
@@ -59,7 +59,7 @@ Order cutoff uses the API server clock in `Asia/Bangkok`. Production hosts shoul
 
 - `CouponTx` rows in `CONFIRMED` or `SETTLED` cannot be updated or deleted. The migration installs `trg_protect_vault_tx`. `PENDING` may move to `CONFIRMED` or `CANCELLED_SYSTEM`.
 - `txHash` is SHA-256 over `id|userId|stable-json(items)|totalAmount|createdAt ISO|SERVER_VAULT_SECRET`.
-- State-changing routes require `x-timestamp`, `x-nonce`, and `x-signature`. The signature is HMAC-SHA256 of `method|path|timestamp|nonce|rawBody`. Timestamps outside 60 seconds are rejected. Nonces are stored with Redis `SET NX`.
+- State-changing routes require `x-timestamp`, `x-nonce`, and `x-signature`. The signature is HMAC-SHA256 of `method|path|timestamp|nonce|rawBody`. Timestamps outside 60 seconds are rejected. Nonces use Redis when `REDIS_URL` is set, and Postgres otherwise.
 - Point balances are reserved with the Lua script in `apps/api/src/redis/scripts/reserve-balance.lua` (`DECRBY` on integer minor units). The ledger is double-entry and must balance before commit.
 - Partner `path` is an `ltree` value computed by the server from the parent. Clients cannot set it.
 

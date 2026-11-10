@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
 import { DomainError } from '../common/domain-error.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
 
 const WINDOW_MS = 60_000;
@@ -13,6 +14,7 @@ export class HmacGuard implements CanActivate {
   constructor(
     private readonly config: ConfigService,
     private readonly redis: RedisService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -38,7 +40,9 @@ export class HmacGuard implements CanActivate {
       throw new DomainError('HMAC_INVALID');
     }
 
-    const reserved = await this.redis.client.set(`hmac:nonce:${nonce}`, '1', 'EX', NONCE_TTL_SECONDS, 'NX');
+    const reserved = this.redis.client
+      ? await this.redis.client.set(`hmac:nonce:${nonce}`, '1', 'EX', NONCE_TTL_SECONDS, 'NX')
+      : await this.reserveNonce(nonce);
     if (reserved !== 'OK') {
       throw new DomainError('HMAC_NONCE_REUSED');
     }
@@ -51,6 +55,17 @@ export class HmacGuard implements CanActivate {
       throw new DomainError('HMAC_INVALID');
     }
     return true;
+  }
+
+  private async reserveNonce(nonce: string): Promise<'OK' | null> {
+    await this.prisma.$executeRaw`DELETE FROM "RequestNonce" WHERE "expiresAt" < NOW()`;
+    const inserted = await this.prisma.$queryRaw<Array<{ nonce: string }>>`
+      INSERT INTO "RequestNonce" (nonce, "expiresAt")
+      VALUES (${nonce}, NOW() + (${NONCE_TTL_SECONDS}::int * INTERVAL '1 second'))
+      ON CONFLICT (nonce) DO NOTHING
+      RETURNING nonce
+    `;
+    return inserted.length === 1 ? 'OK' : null;
   }
 }
 

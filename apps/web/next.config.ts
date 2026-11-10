@@ -11,8 +11,12 @@ const webDir = dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  output: 'standalone',
-  outputFileTracingRoot: resolve(webDir, '../..'),
+  ...(process.env.VERCEL
+    ? {}
+    : {
+        output: 'standalone' as const,
+        outputFileTracingRoot: resolve(webDir, '../..'),
+      }),
 };
 
 export default nextConfig;

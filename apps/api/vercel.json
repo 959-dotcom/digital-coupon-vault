@@ -1,0 +1,12 @@
+{
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm ci --prefix ../..",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "includeFiles": "dist/**"
+    }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "crons": [{ "path": "/cron/batch", "schedule": "* * * * *" }]
+}

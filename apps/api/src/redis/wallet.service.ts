@@ -4,6 +4,7 @@ import { DomainError } from '../common/domain-error.js';
 import { Decimal, ZERO, minorUnitsToSafeInteger, moneyFromDatabase, toMinorUnits } from '../money/decimal.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { creditBalanceLua, releaseBalanceLua, releaseLockLua, reserveBalanceLua, captureHoldLua } from './lua-scripts.js';
+import type { Redis } from 'ioredis';
 import { RedisService } from './redis.service.js';
 
 const HOLD_TTL_SECONDS = 120;
@@ -16,6 +17,9 @@ export class WalletService {
   ) {}
 
   async reserve(userId: string, amount: Decimal, token: string): Promise<void> {
+    if (!this.redis.client) {
+      return;
+    }
     const minor = toMinorUnits(amount);
     await this.withLock(userId, async () => {
       await this.ensureWallet(userId);
@@ -39,8 +43,11 @@ export class WalletService {
   }
 
   async release(userId: string, token: string): Promise<void> {
+    if (!this.redis.client) {
+      return;
+    }
     await this.withLock(userId, async () => {
-      const raw = await this.redis.client.eval(releaseBalanceLua, 2, this.walletKey(userId), this.holdKey(token));
+      const raw = await this.redisClient().eval(releaseBalanceLua, 2, this.walletKey(userId), this.holdKey(token));
       const [flag, reason] = asTuple(raw);
       if (flag === '1' || reason === 'MISSING') {
         return;
@@ -50,20 +57,26 @@ export class WalletService {
   }
 
   async capture(token: string): Promise<void> {
-    await this.redis.client.eval(captureHoldLua, 1, this.holdKey(token));
+    if (!this.redis.client) {
+      return;
+    }
+    await this.redisClient().eval(captureHoldLua, 1, this.holdKey(token));
   }
 
   async credit(userId: string, amount: Decimal): Promise<void> {
+    if (!this.redis.client) {
+      return;
+    }
     const minor = toMinorUnits(amount);
     await this.withLock(userId, async () => {
       const key = this.walletKey(userId);
-      if ((await this.redis.client.exists(key)) === 0) {
+      if ((await this.redisClient().exists(key)) === 0) {
         const won = await this.writeWalletFromLedger(userId);
         if (won) {
           return;
         }
       }
-      const raw = await this.redis.client.eval(
+      const raw = await this.redisClient().eval(
         creditBalanceLua,
         1,
         key,
@@ -77,7 +90,7 @@ export class WalletService {
   }
 
   private async evalReserve(userId: string, minor: string, token: string): Promise<string> {
-    const raw = await this.redis.client.eval(
+    const raw = await this.redisClient().eval(
       reserveBalanceLua,
       2,
       this.walletKey(userId),
@@ -97,7 +110,7 @@ export class WalletService {
   }
 
   private async ensureWallet(userId: string): Promise<void> {
-    if ((await this.redis.client.exists(this.walletKey(userId))) === 1) {
+    if ((await this.redisClient().exists(this.walletKey(userId))) === 1) {
       return;
     }
     await this.writeWalletFromLedger(userId);
@@ -116,7 +129,7 @@ export class WalletService {
       throw new DomainError('INSUFFICIENT_BALANCE');
     }
     const minor = available.eq(0) ? '0' : toMinorUnits(available);
-    const wrote = await this.redis.client.set(this.walletKey(userId), minor, 'NX');
+    const wrote = await this.redisClient().set(this.walletKey(userId), minor, 'NX');
     return wrote === 'OK';
   }
 
@@ -124,17 +137,25 @@ export class WalletService {
     const token = randomUUID();
     const key = `wallet:lock:${userId}`;
     for (let attempt = 0; attempt < 8; attempt += 1) {
-      const got = await this.redis.client.set(key, token, 'EX', 8, 'NX');
+      const got = await this.redisClient().set(key, token, 'EX', 8, 'NX');
       if (got === 'OK') {
         try {
           return await fn();
         } finally {
-          await this.redis.client.eval(releaseLockLua, 1, key, token);
+          await this.redisClient().eval(releaseLockLua, 1, key, token);
         }
       }
       await delay(40 * (attempt + 1));
     }
     throw new DomainError('WALLET_BUSY');
+  }
+
+  private redisClient(): Redis {
+    const client = this.redis.client;
+    if (!client) {
+      throw new DomainError('RESERVE_FAILED');
+    }
+    return client;
   }
 
   private walletKey(userId: string): string {

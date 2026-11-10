@@ -1,6 +1,7 @@
+import './load-env.js';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module.js';
@@ -10,12 +11,15 @@ import { RolesGuard } from './auth/roles.guard.js';
 import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
 import { CommissionModule } from './commission/commission.module.js';
 import { CouponsModule } from './coupons/coupons.module.js';
+import { CronModule } from './cron/cron.module.js';
 import { HealthController } from './health.controller.js';
 import { HmacGuard } from './hmac/hmac.guard.js';
 import { LedgerModule } from './ledger/ledger.module.js';
 import { PartnersModule } from './partners/partners.module.js';
 import { NotificationModule } from './notifications/notification.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { PrismaService } from './prisma/prisma.service.js';
+import { DatabaseThrottlerStorage } from './redis/database-rate-limit.js';
 import { RedisModule } from './redis/redis.module.js';
 import { RedisService } from './redis/redis.service.js';
 import { ORDER_LIMIT, ORDER_TTL_MS, RedisThrottlerStorage } from './redis/throttler-storage.js';
@@ -27,19 +31,16 @@ import { VaultModule } from './vault/vault.module.js';
       isGlobal: true,
       envFilePath: ['.env', '../../.env'],
     }),
-    BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        connection: { url: config.getOrThrow<string>('REDIS_URL') },
-      }),
-    }),
+    ...(process.env.REDIS_URL
+      ? [BullModule.forRoot({ connection: { url: process.env.REDIS_URL } })]
+      : []),
     PrismaModule,
     RedisModule,
     ThrottlerModule.forRootAsync({
-      inject: [RedisService],
-      useFactory: (redis: RedisService) => ({
+      inject: [RedisService, PrismaService],
+      useFactory: (redis: RedisService, prisma: PrismaService) => ({
         throttlers: [{ name: 'default', ttl: ORDER_TTL_MS, limit: ORDER_LIMIT }],
-        storage: new RedisThrottlerStorage(redis.client),
+        storage: redis.client ? new RedisThrottlerStorage(redis.client) : new DatabaseThrottlerStorage(prisma),
         errorMessage: 'RATE_LIMITED',
         getTracker: (req: Record<string, unknown>) => {
           const request = req as { user?: { userId?: string }; ip?: string };
@@ -54,6 +55,7 @@ import { VaultModule } from './vault/vault.module.js';
     CommissionModule,
     PartnersModule,
     CouponsModule,
+    CronModule,
     LedgerModule,
   ],
   controllers: [HealthController],

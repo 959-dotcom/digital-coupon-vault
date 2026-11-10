@@ -1,7 +1,5 @@
-import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Queue } from 'bullmq';
 import { CouponCategoryService } from '../coupons/coupon-category.service.js';
 import { cutoffForSlot, parseSchedule } from '../coupons/schedule.js';
 import { cutoffInstant } from '../cutoff/cutoff.js';
@@ -10,19 +8,14 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { parseOracleBody, parseOracleSourceUrls, sourceHost, type OracleReading } from './oracle-parse.js';
 
 @Injectable()
-export class ExternalResultOracleService implements OnModuleInit {
+export class ExternalResultOracleService {
   private readonly logger = new Logger(ExternalResultOracleService.name);
 
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly categories: CouponCategoryService,
-    @InjectQueue('result-oracle') private readonly queue: Queue,
   ) {}
-
-  async onModuleInit(): Promise<void> {
-    await this.queue.upsertJobScheduler('result-oracle-minute', { pattern: '* * * * *' }, { name: 'poll', data: {} });
-  }
 
   async poll(now: Date): Promise<void> {
     const urls = parseOracleSourceUrls(this.config.get<string>('ORACLE_SOURCE_URLS'));

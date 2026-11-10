@@ -1,6 +1,4 @@
-import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Queue } from 'bullmq';
+import { Injectable } from '@nestjs/common';
 import { DomainError } from '../common/domain-error.js';
 import { cutoffInstant, formatCalendarDate } from '../cutoff/cutoff.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -9,17 +7,11 @@ import { cutoffForSlot, nextSession, parseSchedule } from './schedule.js';
 import { drawYeekeeOutcome } from './yeekee-outcome.js';
 
 @Injectable()
-export class YeekeeBatchScheduler implements OnModuleInit {
+export class YeekeeBatchScheduler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly categories: CouponCategoryService,
-    @InjectQueue('yeekee-batches') private readonly queue: Queue,
   ) {}
-
-  async onModuleInit(): Promise<void> {
-    await this.queue.upsertJobScheduler('yeekee-15m', { pattern: '* * * * *' }, { name: 'sync', data: {} });
-    await this.sync(new Date());
-  }
 
   async sync(now: Date): Promise<void> {
     await this.syncYeekee(now);
