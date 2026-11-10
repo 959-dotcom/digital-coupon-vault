@@ -1,4 +1,19 @@
-import type { ThrottlerStorage } from '@nestjs/throttler';
+export type ThrottlerStorageRecord = {
+  totalHits: number;
+  timeToExpire: number;
+  isBlocked: boolean;
+  timeToBlockExpire: number;
+};
+
+export interface ThrottlerStorage {
+  increment(
+    key: string,
+    ttl: number,
+    limit: number,
+    blockDuration: number,
+    throttlerName: string,
+  ): Promise<ThrottlerStorageRecord>;
+}
 
 export const ORDER_LIMIT = 10;
 export const ORDER_TTL_MS = 60_000;
@@ -51,7 +66,7 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
     limit: number,
     blockDuration: number,
     _throttlerName: string,
-  ): Promise<Awaited<ReturnType<ThrottlerStorage['increment']>>> {
+  ): Promise<ThrottlerStorageRecord> {
     const raw = await this.client.eval(INCREMENT_LUA, 1, key, String(ttl), String(limit), String(blockDuration));
     const [totalHits, timeToExpire, blocked, timeToBlockExpire] = asNumbers(raw);
     return {

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, Roles } from '../auth/decorators.js';
+import { RouteRateLimit, RouteRateLimitGuard } from '../redis/route-rate-limit.guard.js';
 import { WITHDRAWAL_LIMIT, WITHDRAWAL_TTL_MS } from '../redis/throttler-storage.js';
 import { CreateWithdrawalDto, WithdrawalIdDto } from './dto.js';
 import { WithdrawalService } from './withdrawal.service.js';
@@ -11,8 +11,8 @@ export class WithdrawalController {
   constructor(private readonly withdrawals: WithdrawalService) {}
 
   @Post('me/withdrawals')
-  @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: WITHDRAWAL_LIMIT, ttl: WITHDRAWAL_TTL_MS } })
+  @UseGuards(RouteRateLimitGuard)
+  @RouteRateLimit(WITHDRAWAL_LIMIT, WITHDRAWAL_TTL_MS)
   create(@CurrentUser() actor: AuthUser, @Body() dto: CreateWithdrawalDto) {
     return this.withdrawals.create(actor, dto);
   }

@@ -1,6 +1,6 @@
-import type { ThrottlerStorage } from '@nestjs/throttler';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { ThrottlerStorage, ThrottlerStorageRecord } from './throttler-storage.js';
 
 type HitRow = { hits: number; ttl: number };
 
@@ -13,7 +13,7 @@ export class DatabaseThrottlerStorage implements ThrottlerStorage {
     limit: number,
     blockDuration: number,
     _throttlerName: string,
-  ): Promise<Awaited<ReturnType<ThrottlerStorage['increment']>>> {
+  ): Promise<ThrottlerStorageRecord> {
     const rows = await this.prisma.$queryRaw<HitRow[]>(Prisma.sql`
       INSERT INTO "RateBucket" (bucket, hits, "resetAt")
       VALUES (${key}, 1, NOW() + (${ttl}::int * INTERVAL '1 millisecond'))
