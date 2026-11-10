@@ -8,5 +8,5 @@
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
-  "crons": [{ "path": "/cron/batch", "schedule": "* * * * *" }]
+  "crons": [{ "path": "/cron/batch", "schedule": "0 0 * * *" }]
 }

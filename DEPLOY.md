@@ -79,6 +79,6 @@ Leave `REDIS_URL` unset. Rate limits and HMAC nonces use Postgres. Orders confir
 
 ## Cron
 
-`apps/api/vercel.json` schedules `GET /cron/batch` every minute. The route calls the Yeekee cutoff sync, the result oracle, and the notification reminder. Vercel sends `Authorization: Bearer <CRON_SECRET>`. A per-minute cron requires a Vercel plan that allows that schedule.
+`apps/api/vercel.json` schedules `GET /cron/batch` once a day (`0 0 * * *`) so a Hobby project can deploy. The route calls the Yeekee cutoff sync, the result oracle, and the notification reminder. Vercel sends `Authorization: Bearer <CRON_SECRET>`. A per-minute schedule (`* * * * *`) requires a Vercel plan that allows it; switch the expression after upgrading.
 
-ถ้าไม่ตั้ง `ORACLE_SOURCE_URLS` งาน oracle จะไม่ดึงผลและบันทึกว่าไม่มีแหล่งข้อมูล Cron ทุกนาทีต้องใช้แผน Vercel ที่รองรับตารางนั้น
+ถ้าไม่ตั้ง `ORACLE_SOURCE_URLS` งาน oracle จะไม่ดึงผลและบันทึกว่าไม่มีแหล่งข้อมูล ตารางในไฟล์คือวันละครั้งเพราะบัญชี Hobby ยังรับ cron ทุกนาทีไม่ได้ หลังอัปเกรดแผนค่อยเปลี่ยนเป็น `* * * * *`
