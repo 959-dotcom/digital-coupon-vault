@@ -1,9 +1,10 @@
 {
   "buildCommand": "npm run vercel-build",
   "installCommand": "npm ci --prefix ../..",
+  "outputDirectory": "public",
   "functions": {
     "api/index.js": {
-      "maxDuration": 60,
+      "maxDuration": 10,
       "includeFiles": "dist/**"
     }
   },
