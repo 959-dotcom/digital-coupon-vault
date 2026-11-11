@@ -18,7 +18,7 @@
     "prisma:validate": "prisma validate",
     "prisma:migrate": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
-    "vercel-build": "prisma generate && nest build && node dist/prisma/apply-pooler-migrations.js"
+    "vercel-build": "prisma generate && nest build"
   },
   "dependencies": {
     "@nestjs/bullmq": "12.0.1",
