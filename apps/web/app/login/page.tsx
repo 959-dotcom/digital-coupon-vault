@@ -12,13 +12,6 @@ import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { copy } from '@/lib/copy';
 
-const samples = [
-  ['member@vantage.local', copy.roles.MEMBER],
-  ['shop@vantage.local', copy.roles.PARTNER],
-  ['master@vantage.local', copy.roles.MASTER_PARTNER],
-  ['admin@vantage.local', copy.roles.SUPER_ADMIN],
-] as const;
-
 export default function LoginPage() {
   const router = useRouter();
   const ready = useSessionReady();
@@ -80,17 +73,6 @@ export default function LoginPage() {
           </Button>
         </form>
       </Card>
-      <div className="mt-5 rounded-3xl border border-line bg-card/70 p-4 text-sm text-ink/70">
-        <p>{copy.login.hint}</p>
-        <p className="mt-3 font-medium text-ink">{copy.login.accounts}</p>
-        <ul className="mt-2 space-y-1 font-mono text-xs">
-          {samples.map(([address, role]) => (
-            <li key={address}>
-              {address} · {role}
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   );
 }

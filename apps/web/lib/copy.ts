@@ -8,8 +8,6 @@ export const copy = {
     submit: 'เข้าสู่ระบบ',
     submitting: 'กำลังตรวจสอบ',
     failed: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
-    hint: 'ใช้บัญชีที่สร้างจากคำสั่ง seed รหัสผ่านคือค่า SEED_PASSWORD',
-    accounts: 'บัญชีตัวอย่าง',
   },
   nav: {
     catalog: 'แคตตาล็อก',
