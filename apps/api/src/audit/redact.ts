@@ -1,4 +1,4 @@
-const SECRET_KEY = /password/i;
+const SECRET_KEY = /password|pin|token|secret/i;
 
 export function redactSecrets(detail: Record<string, unknown>): Record<string, unknown> {
   const next: Record<string, unknown> = {};

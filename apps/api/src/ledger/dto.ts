@@ -1,4 +1,4 @@
-import { IsString, IsUUID, Length, Matches } from 'class-validator';
+import { IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 
 export class WithdrawalIdDto {
   @IsUUID()
@@ -9,9 +9,13 @@ export class CreateWithdrawalDto {
   @Matches(/^\d{1,11}\.\d{4}$/)
   amount!: string;
 
+  @IsOptional()
   @IsString()
-  @Length(1, 80)
-  destination!: string;
+  @Length(0, 80)
+  destination?: string;
+
+  @Matches(/^\d{6}$/)
+  pin!: string;
 }
 
 export class FundPointsDto {

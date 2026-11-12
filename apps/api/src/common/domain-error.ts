@@ -34,6 +34,14 @@ const STATUS: Record<string, number> = {
   RESERVE_FAILED: 500,
   VAULT_MISMATCH: 500,
   RATE_LIMITED: 429,
+  DEPOSITS_CLOSED: 409,
+  DEPOSIT_BUSY: 409,
+  DEPOSIT_EXPIRED: 409,
+  SLIP_REUSED: 409,
+  BAD_PIN: 401,
+  PIN_MISMATCH: 400,
+  BAD_PHONE: 400,
+  DEPOSIT_UNMATCHED: 404,
 };
 
 export class DomainError extends Error {

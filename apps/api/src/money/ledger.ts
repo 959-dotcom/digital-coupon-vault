@@ -128,6 +128,54 @@ export function buildWithdrawalLedger(input: { userId: string; amount: Decimal }
   return lines;
 }
 
+export function buildDepositLedger(input: { userId: string; amount: Decimal; depositId: string }): LedgerLine[] {
+  if (input.amount.lte(0)) {
+    throw new Error('INVALID_AMOUNT');
+  }
+  const lines: LedgerLine[] = [
+    {
+      accountType: 'ASSET',
+      accountCode: 'PROMPTPAY_CLEARING',
+      debit: input.amount,
+      credit: ZERO,
+      memo: 'DEPOSIT_CASH',
+    },
+    {
+      accountType: 'LIABILITY',
+      accountCode: `USER_CASH:${input.userId}`,
+      debit: ZERO,
+      credit: input.amount,
+      memo: `DEPOSIT_CREDIT:${input.depositId}`,
+    },
+  ];
+  assertBalanced(lines);
+  return lines;
+}
+
+export function buildCashWithdrawalLedger(input: { userId: string; amount: Decimal }): LedgerLine[] {
+  if (input.amount.lte(0)) {
+    throw new Error('INVALID_AMOUNT');
+  }
+  const lines: LedgerLine[] = [
+    {
+      accountType: 'LIABILITY',
+      accountCode: `USER_CASH:${input.userId}`,
+      debit: input.amount,
+      credit: ZERO,
+      memo: 'WITHDRAW_QUEUED',
+    },
+    {
+      accountType: 'ASSET',
+      accountCode: 'PLATFORM_CASH',
+      debit: ZERO,
+      credit: input.amount,
+      memo: 'WITHDRAW_QUEUED',
+    },
+  ];
+  assertBalanced(lines);
+  return lines;
+}
+
 export function pointBalanceAfter(userId: string, opening: Decimal, lines: readonly LedgerLine[]): Decimal {
   const accountCode = `USER_POINTS:${userId}`;
   return lines

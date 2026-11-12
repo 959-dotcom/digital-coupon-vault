@@ -27,6 +27,29 @@ import type {
   RoleName,
 } from './types';
 
+export type DepositView = {
+  id: string;
+  amount: string;
+  requested: string;
+  satang: number;
+  qrRef: string;
+  status: 'PENDING' | 'REVIEW' | 'PAID' | 'REJECTED' | 'EXPIRED';
+  expiresAt: string;
+  createdAt: string;
+  paid: boolean;
+  qrDataUrl?: string | null;
+};
+
+export type PaymentSettings = {
+  open: boolean;
+  promptPayId: string;
+  telegramConfigured: boolean;
+  telegramChatId: string;
+  payoutRail: string;
+  payoutRailConfigured: boolean;
+  webhookSet?: boolean;
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -73,8 +96,18 @@ export const api = {
   login(body: { email: string; password: string }) {
     return request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(body) });
   },
-  register(body: { email: string; password: string; displayName: string; ref: string }) {
-    return request<{ id: string; email: string; role: string }>('/auth/register', { method: 'POST', body: JSON.stringify(body) });
+  register(body: {
+    phone: string;
+    pin: string;
+    pinConfirm: string;
+    bankProvider: string;
+    accountNumber: string;
+    fullName: string;
+    lineId?: string;
+    sourceChannel: string;
+    ref?: string;
+  }) {
+    return request<{ id: string; phone: string; role: string }>('/auth/register', { method: 'POST', body: JSON.stringify(body) });
   },
   referral() {
     return request<{ code: string; path: string }>('/me/referral');
@@ -124,6 +157,59 @@ export const api = {
   },
   changePassword(body: { currentPassword: string; newPassword: string }) {
     return request<{ changed: true }>('/auth/password', { method: 'PATCH', body: JSON.stringify(body) });
+  },
+  profile() {
+    return request<{
+      displayName: string;
+      phone: string | null;
+      bankProvider: string | null;
+      bankAccountNo: string | null;
+      accountName: string;
+      lineId: string | null;
+      sourceChannel: string | null;
+      hasPin: boolean;
+      role: string;
+      isStaff: boolean;
+    }>('/me/profile');
+  },
+  changePin(body: { currentPin?: string; pin: string; pinConfirm: string }) {
+    return request<{ changed: true }>('/me/pin', { method: 'PATCH', body: JSON.stringify(body) });
+  },
+  cash() {
+    return request<{ available: string }>('/me/cash');
+  },
+  depositConfig() {
+    return request<{ open: boolean }>('/deposits/config');
+  },
+  deposits() {
+    return request<DepositView[]>('/deposits');
+  },
+  createDeposit(amount: string) {
+    return request<DepositView & { qrDataUrl: string | null }>('/deposits', {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
+  },
+  deposit(id: string) {
+    return request<DepositView & { qrDataUrl: string | null }>(`/deposits/${id}`);
+  },
+  uploadSlip(id: string, filename: string, contentBase64: string) {
+    return request<DepositView>(`/deposits/${id}/slip`, {
+      method: 'POST',
+      body: JSON.stringify({ filename, contentBase64 }),
+    });
+  },
+  paymentSettings() {
+    return request<PaymentSettings>('/system/payments');
+  },
+  savePaymentSettings(body: {
+    promptPayId?: string;
+    telegramChatId?: string;
+    telegramBotToken?: string;
+    clearTelegramToken?: boolean;
+    payoutRail?: string;
+  }) {
+    return request<PaymentSettings>('/system/payments', { method: 'PATCH', body: JSON.stringify(body) });
   },
   updateHold(id: string, holdPercent: string) {
     return request<{ id: string; holdPercent: string }>(`/network/${id}/hold`, {
@@ -207,8 +293,11 @@ export const api = {
   withdrawals() {
     return request<WithdrawalView[]>('/me/withdrawals');
   },
-  withdraw(body: { amount: string; destination: string }) {
-    return request<WithdrawalView>('/me/withdrawals', { method: 'POST', body: JSON.stringify(body) });
+  withdraw(body: { amount: string; pin: string }) {
+    return request<WithdrawalView & { payout: 'queued'; transferred: false }>('/me/withdrawals', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   },
   adminWithdrawals() {
     return request<AdminWithdrawal[]>('/admin/withdrawals');

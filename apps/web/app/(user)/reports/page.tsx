@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StatePanel } from '@/components/state-panel';
@@ -31,6 +32,10 @@ export default function ReportsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{copy.reports.title}</h1>
+      <div className="grid grid-cols-2 gap-2">
+        <Button asChild variant="outline" className="h-12"><Link href="/network">{copy.nav.network}</Link></Button>
+        <Button asChild variant="outline" className="h-12"><Link href="/history">{copy.nav.history}</Link></Button>
+      </div>
       <div className="flex flex-wrap gap-2">
         {presets.map(([key, label]) => (
           <Button key={key} size="sm" variant={preset === key ? 'default' : 'outline'} onClick={() => setPreset(key)}>

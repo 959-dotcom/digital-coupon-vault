@@ -22,6 +22,11 @@ export class WithdrawalController {
     return this.withdrawals.list(actor);
   }
 
+  @Get('me/cash')
+  cash(@CurrentUser() actor: AuthUser) {
+    return this.withdrawals.cashBalance(actor);
+  }
+
   @Get('me/ledger')
   ledger(@CurrentUser() actor: AuthUser) {
     return this.withdrawals.ledger(actor);

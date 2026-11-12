@@ -45,6 +45,40 @@ enum CreditKind {
   TRANSFER
 }
 
+enum DepositStatus {
+  PENDING
+  REVIEW
+  PAID
+  REJECTED
+  EXPIRED
+}
+
+enum BankProvider {
+  BBL
+  KBANK
+  KTB
+  SCB
+  BAY
+  TTB
+  GSB
+  BAAC
+  UOB
+  CIMB
+  KKP
+  LHB
+  TCRB
+  TRUEWALLET
+}
+
+enum SourceChannel {
+  FACEBOOK
+  TIKTOK
+  GOOGLE
+  FRIEND
+  YOUTUBE
+  OTHER
+}
+
 model Partner {
   id               String             @id @default(uuid())
   code             String             @unique
@@ -100,6 +134,14 @@ model User {
   creditReceived CreditTransaction[] @relation("CreditReceived")
   billShares    BillShare[]
   lineProducts  LineProduct[]
+  phone         String?        @unique
+  pinHash       String?
+  bankProvider  BankProvider?
+  bankAccountNo String?
+  accountName   String?
+  lineId        String?
+  sourceChannel SourceChannel?
+  deposits      Deposit[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -197,6 +239,8 @@ model Withdrawal {
   amount      Decimal  @db.Decimal(15, 4)
   destination String
   status      String   @default("PENDING")
+  /// POINTS keeps historical point withdrawals. New requests use CASH.
+  wallet      String   @default("POINTS")
   createdAt   DateTime @default(now())
 
   @@index([userId, createdAt])
@@ -270,10 +314,38 @@ model LineProduct {
 }
 
 model SystemSetting {
-  id                String          @id @default("default")
-  adminBasePercent  Decimal         @default(5) @db.Decimal(5, 2)
-  percentLockMode   PercentLockMode @default(ADMIN_LOCK)
-  updatedAt         DateTime        @updatedAt
+  id                     String          @id @default("default")
+  adminBasePercent       Decimal         @default(5) @db.Decimal(5, 2)
+  percentLockMode        PercentLockMode @default(ADMIN_LOCK)
+  promptPayId            String?
+  telegramBotToken       String?
+  telegramChatId         String?
+  telegramWebhookSecret  String?
+  payoutRail             String?
+  updatedAt              DateTime        @updatedAt
+}
+
+model Deposit {
+  id               String        @id @default(uuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id])
+  requested        Decimal       @db.Decimal(15, 4)
+  satang           Int
+  amount           Decimal       @db.Decimal(15, 4)
+  qrRef            String        @unique
+  status           DepositStatus
+  expiresAt        DateTime
+  bankRef          String?       @unique
+  slipSha256       String?       @unique
+  slipName         String?
+  slipBytes        Bytes?
+  paidAt           DateTime?
+  decidedBy        String?
+  telegramUpdateId String?
+  createdAt        DateTime      @default(now())
+
+  @@index([userId, createdAt])
+  @@index([status])
 }
 
 model CreditAccount {

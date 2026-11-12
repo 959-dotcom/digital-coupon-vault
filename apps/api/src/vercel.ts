@@ -13,7 +13,8 @@ export async function createServer(): Promise<express.Express> {
     return cached;
   }
   const server = express();
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), { rawBody: true });
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), { rawBody: true, bodyParser: false });
+  (app as unknown as { useBodyParser: (type: 'json', options: { limit: string }) => void }).useBodyParser('json', { limit: '2mb' });
   await configureApp(app);
   await app.init();
   cached = server;

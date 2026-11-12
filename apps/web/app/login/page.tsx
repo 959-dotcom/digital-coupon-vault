@@ -23,7 +23,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (ready && user) {
-      router.replace(user.role === 'MEMBER' ? '/catalog' : '/hierarchy');
+      router.replace('/home');
     }
   }, [ready, user, router]);
 
@@ -31,7 +31,7 @@ export default function LoginPage() {
     mutationFn: () => api.login({ email: email.trim(), password }),
     onSuccess: (result) => {
       setSession(result.accessToken, result.user);
-      router.replace(result.user.role === 'MEMBER' ? '/catalog' : '/hierarchy');
+      router.replace('/home');
     },
     onError: (error: Error) => {
       setFormError(error instanceof ApiError ? error.message : copy.errors.generic);
@@ -52,7 +52,7 @@ export default function LoginPage() {
         <h2 className="text-lg font-semibold">{copy.login.title}</h2>
         <form className="mt-4 space-y-4" onSubmit={onSubmit}>
           <div className="space-y-1.5">
-            <Label htmlFor="email">{copy.login.email}</Label>
+            <Label htmlFor="email">{copy.login.email} / {copy.register.phone}</Label>
             <Input id="email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
           </div>
           <div className="space-y-1.5">
@@ -64,7 +64,7 @@ export default function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              minLength={8}
+              minLength={6}
             />
           </div>
           {formError ? <p className="rounded-2xl bg-danger-soft px-3 py-2 text-sm text-danger">{formError}</p> : null}

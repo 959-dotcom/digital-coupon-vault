@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Bell, HandCoins, LayoutGrid, LogOut, Network, Percent, ReceiptText, Scale, ScrollText, Shield, Tags, Users, Wallet } from 'lucide-react';
+import { Bell, CircleUser, House, LogOut, ScrollText, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -25,7 +25,7 @@ export function ReferralLink({ path }: { path: string | undefined }) {
       </div>
       <button
         type="button"
-        className="shrink-0 text-xs text-brass"
+        className="inline-flex min-h-11 shrink-0 items-center px-3 text-sm text-brass"
         onClick={() => {
           void navigator.clipboard.writeText(link).then(() => {
             setCopied(true);
@@ -37,6 +37,21 @@ export function ReferralLink({ path }: { path: string | undefined }) {
       </button>
     </div>
   );
+}
+
+export function tabActive(pathname: string, href: string): boolean {
+  if (href === '/money') {
+    return ['/money', '/deposit', '/withdraw'].includes(pathname);
+  }
+  if (href === '/reports') {
+    return ['/reports', '/network', '/history', '/bills', '/hierarchy', '/hold'].some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  }
+  if (href === '/account') {
+    return ['/account', '/staff', '/products', '/catalog', '/orders', '/settlement', '/withdrawals', '/audit-logs', '/notifications'].some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`),
+    );
+  }
+  return pathname === href;
 }
 
 export function useSessionReady() {
@@ -65,8 +80,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [ready, user, router]);
 
   const balance = useQuery({
-    queryKey: ['balance'],
-    queryFn: () => api.balance(),
+    queryKey: ['cash'],
+    queryFn: () => api.cash(),
     enabled: ready && Boolean(user),
   });
   const inbox = useQuery({
@@ -84,25 +99,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (!ready || !user) {
     return <p className="px-5 py-16 text-center text-sm text-ink/60">{copy.states.loading}</p>;
   }
-  const partnerNav = user.role !== 'MEMBER';
   const links = [
-    ...(user.role === 'SUPER_ADMIN'
-      ? [
-          { href: '/settlement', label: copy.nav.settlement, icon: Scale },
-          { href: '/withdrawals', label: copy.nav.withdrawals, icon: HandCoins },
-          { href: '/audit-logs', label: copy.nav.audit, icon: ScrollText },
-        ]
-      : []),
-    ...(partnerNav ? [{ href: '/hierarchy', label: copy.nav.hierarchy, icon: Network }] : []),
-    { href: '/network', label: copy.nav.network, icon: Users },
-    { href: '/hold', label: copy.nav.hold, icon: Percent },
-    { href: '/bills', label: copy.nav.bills, icon: ReceiptText },
+    { href: '/home', label: copy.nav.home, icon: House },
+    { href: '/money', label: copy.nav.money, icon: Wallet },
     { href: '/reports', label: copy.nav.reports, icon: ScrollText },
-    { href: '/products', label: copy.nav.products, icon: Tags },
-    { href: '/staff', label: copy.nav.staff, icon: Shield },
-    ...(user.commissionOnly ? [] : [{ href: '/catalog', label: copy.nav.catalog, icon: LayoutGrid }]),
-    { href: '/orders', label: copy.nav.orders, icon: ReceiptText },
-    { href: '/transactions', label: copy.nav.flow, icon: Wallet },
+    { href: '/account', label: copy.nav.account, icon: CircleUser },
   ];
 
   return (
@@ -137,24 +138,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="space-y-4 px-4 py-4">
-        <ReferralLink path={referral.data?.path} />
+        {pathname === '/home' ? <ReferralLink path={referral.data?.path} /> : null}
         {children}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-[#0a0a0a]/95 text-white backdrop-blur">
         <div className="mx-auto flex max-w-lg">
           {links.map((link) => {
             const Icon = link.icon;
-            const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
+            const active = tabActive(pathname, link.href);
             return (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium',
-                  active ? 'text-[#dc2626]' : 'text-white/50',
+                  'flex min-h-16 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-xs font-medium',
+                  active ? 'text-[#dc2626]' : 'text-white/70',
                 )}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-6 w-6" />
                 {link.label}
               </Link>
             );

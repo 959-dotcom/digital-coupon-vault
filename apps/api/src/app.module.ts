@@ -16,6 +16,7 @@ import { HealthController } from './health.controller.js';
 import { HmacGuard } from './hmac/hmac.guard.js';
 import { BillModule } from './bills/bill.module.js';
 import { CreditModule } from './credit/credit.module.js';
+import { DepositModule } from './deposits/deposit.module.js';
 import { HierarchyModule } from './hierarchy/hierarchy.module.js';
 import { LedgerModule } from './ledger/ledger.module.js';
 import { ProductsModule } from './products/products.module.js';
@@ -45,6 +46,7 @@ import { VaultModule } from './vault/vault.module.js';
     AuthModule,
     HierarchyModule,
     CreditModule,
+    DepositModule,
     BillModule,
     ProductsModule,
     ReportsModule,

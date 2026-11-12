@@ -23,6 +23,9 @@ export class HmacGuard implements CanActivate {
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
       return true;
     }
+    if (request.path === '/telegram/webhook') {
+      return true;
+    }
 
     const timestamp = header(request, 'x-timestamp');
     const nonce = header(request, 'x-nonce');

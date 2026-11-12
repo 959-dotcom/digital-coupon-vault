@@ -19,7 +19,7 @@ export default function HomePage() {
       router.replace('/login');
       return;
     }
-    router.replace(user.role === 'MEMBER' ? '/catalog' : '/hierarchy');
+    router.replace('/home');
   }, [ready, user, router]);
 
   return <p className="px-5 py-16 text-center text-sm text-ink/60">{copy.states.loading}</p>;

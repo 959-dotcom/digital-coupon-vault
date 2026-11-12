@@ -145,6 +145,13 @@ export class HierarchyService {
     role?: RoleName;
     holdPercent?: string;
     isActive?: boolean;
+    phone?: string;
+    pinHash?: string;
+    bankProvider?: 'BBL' | 'KBANK' | 'KTB' | 'SCB' | 'BAY' | 'TTB' | 'GSB' | 'BAAC' | 'UOB' | 'CIMB' | 'KKP' | 'LHB' | 'TCRB' | 'TRUEWALLET';
+    bankAccountNo?: string;
+    accountName?: string;
+    lineId?: string | null;
+    sourceChannel?: 'FACEBOOK' | 'TIKTOK' | 'GOOGLE' | 'FRIEND' | 'YOUTUBE' | 'OTHER';
   }): Promise<{ id: string; email: string; role: RoleName; referralCode: string }> {
     const parent = input.parentId
       ? await this.requireRow(input.parentId)
@@ -177,6 +184,13 @@ export class HierarchyService {
           holdPercent: hold.toFixed(2),
           commissionOnly: input.commissionOnly,
           isActive: input.isActive ?? true,
+          phone: input.phone,
+          pinHash: input.pinHash,
+          bankProvider: input.bankProvider,
+          bankAccountNo: input.bankAccountNo,
+          accountName: input.accountName,
+          lineId: input.lineId,
+          sourceChannel: input.sourceChannel,
           creditAccount: { create: { balance: '0.0000' } },
         },
       });

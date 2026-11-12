@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import bcrypt from 'bcrypt';
 import { AccessService } from '../access/access.service.js';
 import { AuditLogService } from '../audit/audit-log.service.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
 import { lockUserAndAssertBalance } from '../coupons/point-reservation.js';
 import { ZERO, formatMoney, moneyFromDatabase, parseExactMoney } from '../money/decimal.js';
-import { buildWithdrawalLedger } from '../money/ledger.js';
+import { buildCashWithdrawalLedger, buildWithdrawalLedger } from '../money/ledger.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { WalletService } from '../redis/wallet.service.js';
@@ -30,24 +31,37 @@ export class WithdrawalService {
     if (amount.lte(0)) {
       throw new DomainError('INVALID_AMOUNT');
     }
-    const destination = dto.destination.trim();
-    if (destination.length === 0) {
+    if (!user.bankProvider || !user.bankAccountNo) {
       throw new DomainError('INVALID_ITEM');
     }
-    const available = await this.availablePoints(this.prisma, actor.userId);
-    if (amount.gt(available)) {
-      throw new DomainError('INSUFFICIENT_BALANCE');
+    const pinOk = user.pinHash ? await bcrypt.compare(dto.pin, user.pinHash) : false;
+    if (!pinOk) {
+      throw new DomainError('BAD_PIN');
     }
-    const created = await this.prisma.withdrawal.create({
-      data: {
-        id: randomUUID(),
-        userId: actor.userId,
-        amount: formatMoney(amount),
-        destination,
-        status: 'PENDING',
-      },
+    const destination = `${user.bankProvider} ${user.bankAccountNo}`;
+    const created = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${actor.userId} FOR UPDATE`;
+      const available = await this.availableCash(tx, actor.userId);
+      if (amount.gt(available)) {
+        throw new DomainError('INSUFFICIENT_BALANCE');
+      }
+      return tx.withdrawal.create({
+        data: {
+          id: randomUUID(),
+          userId: actor.userId,
+          amount: formatMoney(amount),
+          destination,
+          status: 'PENDING',
+          wallet: 'CASH',
+        },
+      });
     });
-    return this.present(created);
+    return { ...this.present(created), payout: 'queued' as const, transferred: false };
+  }
+
+  async cashBalance(actor: AuthUser) {
+    const available = await this.availableCash(this.prisma, actor.userId);
+    return { available: formatMoney(available) };
   }
 
   async approve(actor: AuthUser, id: string) {
@@ -64,14 +78,28 @@ export class WithdrawalService {
     try {
       const updated = await this.prisma.$transaction(
         async (tx) => {
-          await lockUserAndAssertBalance(tx, existing.userId, amount);
+          if (existing.wallet === 'CASH') {
+            await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${existing.userId} FOR UPDATE`;
+            const available = await this.availableCash(tx, existing.userId, existing.id);
+            if (amount.gt(available)) {
+              throw new DomainError('INSUFFICIENT_BALANCE');
+            }
+          } else {
+            await lockUserAndAssertBalance(tx, existing.userId, amount);
+          }
           const locked = await tx.$queryRaw<Array<{ id: string; status: string }>>`
             SELECT id, status FROM "Withdrawal" WHERE id = ${existing.id} FOR UPDATE
           `;
           if (locked.length !== 1 || locked[0]?.status !== 'PENDING') {
             throw new DomainError('CONFLICT');
           }
-          const lines = buildWithdrawalLedger({ userId: existing.userId, amount });
+          const already = await tx.ledgerEntry.count({ where: { transactionId: existing.id } });
+          if (already > 0) {
+            throw new DomainError('CONFLICT');
+          }
+          const lines = existing.wallet === 'CASH'
+            ? buildCashWithdrawalLedger({ userId: existing.userId, amount })
+            : buildWithdrawalLedger({ userId: existing.userId, amount });
           await tx.ledgerEntry.createMany({
             data: lines.map((line) => ({
               transactionId: existing.id,
@@ -194,6 +222,25 @@ export class WithdrawalService {
     if (actor.role !== 'SUPER_ADMIN') {
       throw new DomainError('FORBIDDEN');
     }
+  }
+
+  private async availableCash(tx: Prisma.TransactionClient | PrismaService, userId: string, exceptId?: string) {
+    const rows = await tx.ledgerEntry.findMany({
+      where: { accountCode: `USER_CASH:${userId}` },
+      select: { debit: true, credit: true },
+    });
+    let available = ZERO;
+    for (const row of rows) {
+      available = available.plus(moneyFromDatabase(row.credit)).minus(moneyFromDatabase(row.debit));
+    }
+    const pending = await tx.withdrawal.findMany({
+      where: { userId, wallet: 'CASH', status: 'PENDING', ...(exceptId ? { id: { not: exceptId } } : {}) },
+      select: { amount: true },
+    });
+    for (const row of pending) {
+      available = available.minus(moneyFromDatabase(row.amount));
+    }
+    return available;
   }
 
   private async availablePoints(tx: Prisma.TransactionClient | PrismaService, userId: string) {

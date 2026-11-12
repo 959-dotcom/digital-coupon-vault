@@ -33,6 +33,7 @@ export default function WithdrawalQueuePage() {
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-semibold text-white">{copy.queue.title}</h1>
+      <p className="text-sm text-white/70">{copy.queue.notTransferred}</p>
       {queue.isLoading ? <StatePanel title={copy.catalog.loading} /> : null}
       {queue.isError ? <StatePanel title={copy.queue.error} onRetry={() => void queue.refetch()} /> : null}
       {queue.isSuccess && queue.data.length === 0 ? <StatePanel title={copy.queue.empty} /> : null}

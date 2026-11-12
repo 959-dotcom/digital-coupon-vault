@@ -27,7 +27,12 @@ export type AuditInput = {
     | 'MODE_UPDATE'
     | 'MEMBER_UPDATE'
     | 'PASSWORD_RESET'
-    | 'PASSWORD_CHANGE';
+    | 'PASSWORD_CHANGE'
+    | 'PIN_CHANGE'
+    | 'DEPOSIT_MATCH'
+    | 'DEPOSIT_REVIEW'
+    | 'DEPOSIT_DECISION'
+    | 'PAYMENT_SETTINGS';
   target: string;
   detail: Prisma.InputJsonValue;
   ip?: string | null;

@@ -6,7 +6,8 @@ import { configureApp } from './http-app.js';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create(AppModule, { rawBody: true, bodyParser: false });
+  (app as unknown as { useBodyParser: (type: 'json', options: { limit: string }) => void }).useBodyParser('json', { limit: '2mb' });
   await configureApp(app);
   const port = Number(app.get(ConfigService).get<string>('API_PORT') ?? '4000');
   await app.listen(port, '0.0.0.0');
