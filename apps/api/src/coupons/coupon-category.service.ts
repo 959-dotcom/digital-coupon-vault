@@ -28,11 +28,12 @@ export class CouponCategoryService {
     const categories = await this.prisma.couponCategory.findMany({
       where: { isActive: true },
       orderBy: { code: 'asc' },
+      include: { batches: { orderBy: [{ batchDate: 'asc' }, { slot: 'asc' }] } },
     });
     const presented = [];
     for (const category of categories) {
       await this.ensureUpcoming(category, now);
-      presented.push(await this.present(category.id, now));
+      presented.push(this.presentLoaded(category, now));
     }
     return presented;
   }
@@ -151,7 +152,13 @@ export class CouponCategoryService {
   }
 
   private async ensureUpcoming(
-    category: { id: string; code: string; schedule: unknown; cutoffTime: string },
+    category: {
+      id: string;
+      code: string;
+      schedule: unknown;
+      cutoffTime: string;
+      batches?: Array<{ batchDate: Date; slot: string }>;
+    },
     now: Date,
   ): Promise<void> {
     const schedule = parseSchedule(category.schedule);
@@ -162,7 +169,14 @@ export class CouponCategoryService {
     if (!next) {
       return;
     }
-    const label = `งวด ${formatCalendarDate(next.batchDate)} ${next.slot}`;
+    const nextDate = formatCalendarDate(next.batchDate);
+    const already = category.batches?.some(
+      (batch) => batch.slot === next.slot && formatCalendarDate(batch.batchDate) === nextDate,
+    );
+    if (already) {
+      return;
+    }
+    const label = `งวด ${nextDate} ${next.slot}`;
     await this.prisma.couponBatch.upsert({
       where: {
         categoryId_batchDate_slot: {
@@ -187,6 +201,32 @@ export class CouponCategoryService {
       where: { id },
       include: { batches: { orderBy: [{ batchDate: 'asc' }, { slot: 'asc' }] } },
     });
+    return this.presentLoaded(category, now);
+  }
+
+  private presentLoaded(
+    category: {
+      id: string;
+      code: string;
+      name: string;
+      description: string;
+      cutoffTime: string;
+      schedule: unknown;
+      gridMin: number;
+      gridMax: number;
+      pad: number;
+      stakeAmounts: Prisma.JsonValue;
+      batches: Array<{
+        id: string;
+        batchDate: Date;
+        slot: string;
+        label: string;
+        isOpen: boolean;
+        settledAt: Date | null;
+      }>;
+    },
+    now: Date,
+  ) {
     const schedule = parseSchedule(category.schedule);
     const today = bangkokCalendarDate(now);
     const upcoming = nextSession(schedule, now);
