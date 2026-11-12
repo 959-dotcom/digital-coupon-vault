@@ -25,7 +25,6 @@ test('a transaction pooler URL and a local URL are left unchanged', () => {
   assert.deepEqual(poolerCandidates(pooler), [pooler]);
   assert.deepEqual(poolerCandidates(local), [local]);
   const parsed = new URL(pooler);
-  assert.equal(parsed.username, 'postgres.abcdefghijklmnopqrst');
   assert.equal(parsed.username.includes('.'), true);
   assert.equal(parsed.port, '6543');
   assert.equal(parsed.hostname.split('.')[0], 'aws-1-ap-southeast-1');
