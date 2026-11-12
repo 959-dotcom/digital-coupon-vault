@@ -24,6 +24,7 @@ import type {
   StaffRow,
   StaffInput,
   AdminWithdrawal,
+  RoleName,
 } from './types';
 
 export class ApiError extends Error {
@@ -92,11 +93,37 @@ export const api = {
   network() {
     return request<LineNode[]>('/network');
   },
-  createDownline(body: { email: string; password: string; displayName: string; commissionOnly: boolean }) {
+  createDownline(body: {
+    email: string;
+    password: string;
+    displayName: string;
+    commissionOnly: boolean;
+    role?: RoleName;
+    holdPercent?: string;
+    isActive?: boolean;
+  }) {
     return request<{ id: string; email: string; role: string; referralCode: string }>('/network/downline', {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  },
+  updateMember(
+    id: string,
+    body: { displayName?: string; role?: RoleName; commissionOnly?: boolean; holdPercent?: string; isActive?: boolean },
+  ) {
+    return request<{ id: string; displayName: string; role: string; commissionOnly: boolean; holdPercent: string; isActive: boolean }>(
+      `/network/${id}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    );
+  },
+  resetPassword(id: string, password: string) {
+    return request<{ id: string; password: string }>(`/network/${id}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  },
+  changePassword(body: { currentPassword: string; newPassword: string }) {
+    return request<{ changed: true }>('/auth/password', { method: 'PATCH', body: JSON.stringify(body) });
   },
   updateHold(id: string, holdPercent: string) {
     return request<{ id: string; holdPercent: string }>(`/network/${id}/hold`, {

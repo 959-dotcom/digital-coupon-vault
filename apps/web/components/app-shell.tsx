@@ -75,16 +75,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     enabled: ready && Boolean(user),
     refetchInterval: 15_000,
   });
-
-  if (!ready || !user) {
-    return <p className="px-5 py-16 text-center text-sm text-ink/60">{copy.states.loading}</p>;
-  }
-
   const referral = useQuery({
     queryKey: ['referral'],
     queryFn: () => api.referral(),
     enabled: ready && Boolean(user),
   });
+
+  if (!ready || !user) {
+    return <p className="px-5 py-16 text-center text-sm text-ink/60">{copy.states.loading}</p>;
+  }
   const partnerNav = user.role !== 'MEMBER';
   const links = [
     ...(user.role === 'SUPER_ADMIN'

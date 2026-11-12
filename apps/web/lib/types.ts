@@ -24,6 +24,8 @@ export type LineNode = {
   referralCode: string;
   holdPercent: string;
   commissionOnly: boolean;
+  isActive: boolean;
+  direct: boolean;
   credit: string;
   sales: string;
   commission: string;

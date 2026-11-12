@@ -3,6 +3,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { redactSecrets } from './redact.js';
 
 export type AuditInput = {
   actorId: string | null;
@@ -23,7 +24,10 @@ export type AuditInput = {
     | 'CREDIT_TRANSFER'
     | 'PRODUCT_TOGGLE'
     | 'DOWNLINE_CREATE'
-    | 'MODE_UPDATE';
+    | 'MODE_UPDATE'
+    | 'MEMBER_UPDATE'
+    | 'PASSWORD_RESET'
+    | 'PASSWORD_CHANGE';
   target: string;
   detail: Prisma.InputJsonValue;
   ip?: string | null;
@@ -41,7 +45,7 @@ export class AuditLogService {
         actorId: input.actorId,
         action: input.action,
         target: input.target,
-        detail: input.detail,
+        detail: plainObject(input.detail) ? (redactSecrets(input.detail) as Prisma.InputJsonObject) : input.detail,
         ip: input.ip ?? null,
       },
     });
@@ -85,4 +89,8 @@ export class AuditLogService {
       })),
     };
   }
+}
+
+function plainObject(value: Prisma.InputJsonValue): value is Prisma.InputJsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

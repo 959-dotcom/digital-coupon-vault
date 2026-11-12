@@ -34,6 +34,27 @@ export class AuthService {
     return { id: created.id, email: created.email, role: created.role };
   }
 
+  async changePassword(actor: AuthUser, currentPassword: string, newPassword: string, ip: string): Promise<{ changed: true }> {
+    const user = await this.prisma.user.findUnique({ where: { id: actor.userId } });
+    if (!user || !user.isActive) {
+      throw new DomainError('USER_INACTIVE');
+    }
+    const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!matches) {
+      throw new DomainError('INVALID_CREDENTIALS');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    await this.audit.append(this.prisma, {
+      actorId: user.id,
+      action: 'PASSWORD_CHANGE',
+      target: user.id,
+      detail: { userId: user.id },
+      ip,
+    });
+    return { changed: true };
+  }
+
   async login(dto: LoginDto, ip: string): Promise<{ accessToken: string; user: AuthUser & { displayName: string; commissionOnly: boolean; isStaff: boolean; permissions: ReturnType<typeof readPermissions> | null } }> {
     await this.rateLimit.hit(`login:${ip}`, 10, 60);
     const email = dto.email.trim().toLowerCase();

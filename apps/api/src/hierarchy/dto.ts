@@ -1,4 +1,5 @@
-import { IsBoolean, IsEmail, IsIn, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import type { RoleName } from '../auth/auth-user.js';
 
 export class CreateDownlineDto {
   @IsEmail()
@@ -17,6 +18,51 @@ export class CreateDownlineDto {
 
   @IsBoolean()
   commissionOnly!: boolean;
+
+  @IsOptional()
+  @IsIn(['MASTER_PARTNER', 'PARTNER', 'MEMBER'])
+  role?: Exclude<RoleName, 'SUPER_ADMIN'>;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  holdPercent?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateMemberDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  displayName?: string;
+
+  @IsOptional()
+  @IsIn(['MASTER_PARTNER', 'PARTNER', 'MEMBER'])
+  role?: Exclude<RoleName, 'SUPER_ADMIN'>;
+
+  @IsOptional()
+  @IsBoolean()
+  commissionOnly?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  holdPercent?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(200)
+  password!: string;
 }
 
 export class HoldDto {
