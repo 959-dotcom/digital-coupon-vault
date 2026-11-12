@@ -1,7 +1,6 @@
 import pg from 'pg';
 
 const DIRECT_HOST = /^db\.([a-z0-9]{20})\.supabase\.co$/i;
-const POOLER_HOST = /^aws-\d+-ap-southeast-1\.pooler\.supabase\.com$/i;
 const POOLER_HOSTS = [
   'aws-0-ap-southeast-1.pooler.supabase.com',
   'aws-1-ap-southeast-1.pooler.supabase.com',
@@ -76,13 +75,7 @@ export function poolerCandidates(databaseUrl: string): string[] {
       });
     });
   }
-  // Transaction mode (6543) rejects Prisma prepared statements. Session mode is 5432.
-  // The dotted user and password are copied unchanged.
-  if (POOLER_HOST.test(parts.host) && (parts.port === '6543' || parts.params.has('pgbouncer'))) {
-    const params = new URLSearchParams(parts.params);
-    params.delete('pgbouncer');
-    return [formatConnection({ ...parts, port: '5432', params })];
-  }
+  // A transaction pooler URL (port 6543, pgbouncer=true, dotted user) is used as saved.
   return [databaseUrl];
 }
 
