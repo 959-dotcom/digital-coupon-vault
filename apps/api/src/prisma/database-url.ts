@@ -1,6 +1,8 @@
 import pg from 'pg';
 
 const DIRECT_HOST = /^db\.([a-z0-9]{20})\.supabase\.co$/i;
+const POOLER_HOST = /^aws-\d+-ap-southeast-1\.pooler\.supabase\.com$/i;
+const EXPECTED_POOLER_USER = 'postgres.ztrxeqlgiahjoeootqqh';
 const POOLER_HOSTS = [
   'aws-0-ap-southeast-1.pooler.supabase.com',
   'aws-1-ap-southeast-1.pooler.supabase.com',
@@ -41,14 +43,20 @@ function splitConnection(databaseUrl: string): Parts | null {
   return { user, password, host, port, database, params: new URLSearchParams(match[5] || '') };
 }
 
-const EXPECTED_POOLER_USER = 'postgres.ztrxeqigiahjoeeotqqh';
-
-export function databaseUserIsExpected(databaseUrl: string): boolean | null {
+export function describeDatabaseUrl(databaseUrl: string): {
+  userEquals: boolean | null;
+  port: string | null;
+  pgbouncer: string | null;
+} {
   const parts = splitConnection(databaseUrl);
   if (!parts) {
-    return null;
+    return { userEquals: null, port: null, pgbouncer: null };
   }
-  return parts.user.trim() === EXPECTED_POOLER_USER;
+  return {
+    userEquals: parts.user === EXPECTED_POOLER_USER,
+    port: parts.port || null,
+    pgbouncer: parts.params.get('pgbouncer'),
+  };
 }
 
 function formatConnection(parts: Parts): string {
@@ -68,7 +76,7 @@ export function poolerCandidates(databaseUrl: string): string[] {
   if (direct) {
     const ref = direct[1].toLowerCase();
     if (parts.user !== 'postgres' && parts.user !== `postgres.${ref}`) {
-      return [databaseUrl];
+      return [databaseUrl].map(useLibpqSsl);
     }
     return POOLER_HOSTS.map((host) => {
       const params = new URLSearchParams(parts.params);
@@ -83,14 +91,35 @@ export function poolerCandidates(databaseUrl: string): string[] {
         port: '5432',
         params,
       });
-    });
+    }).map(useLibpqSsl);
   }
-  // A transaction pooler URL (port 6543, pgbouncer=true, dotted user) is used as saved.
-  return [databaseUrl];
+  if (POOLER_HOST.test(parts.host) && parts.user !== EXPECTED_POOLER_USER) {
+    return [formatConnection({ ...parts, user: EXPECTED_POOLER_USER })].map(useLibpqSsl);
+  }
+  return [databaseUrl].map(useLibpqSsl);
+}
+
+// pg 8 treats sslmode=require as verify-full. Supabase's pooler chain is not a
+// public CA, so that fails with a self-signed certificate. libpq's require mode
+// still encrypts and does not verify that chain.
+function useLibpqSsl(databaseUrl: string): string {
+  const parts = splitConnection(databaseUrl);
+  if (!parts) {
+    return databaseUrl;
+  }
+  const mode = parts.params.get('sslmode');
+  if (mode !== 'require' && mode !== 'prefer' && mode !== 'verify-ca') {
+    return databaseUrl;
+  }
+  if (parts.params.get('uselibpqcompat') === 'true') {
+    return databaseUrl;
+  }
+  parts.params.set('uselibpqcompat', 'true');
+  return formatConnection(parts);
 }
 
 export async function resolveDatabaseUrl(databaseUrl: string): Promise<string> {
-  const candidates = poolerCandidates(databaseUrl);
+  const candidates = poolerCandidates(databaseUrl).map(useLibpqSsl);
   if (candidates.length === 1) {
     return candidates[0];
   }
