@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { AccessService } from '../access/access.service.js';
+import { AuditLogService } from '../audit/audit-log.service.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
 import { Decimal, formatMoney, moneyFromDatabase, parseExactMoney } from '../money/decimal.js';
@@ -8,82 +10,110 @@ import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class CreditService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: AccessService,
+    private readonly audit: AuditLogService,
+  ) {}
 
-  async mint(actor: AuthUser, amountInput: string) {
-    this.assertAdmin(actor);
+  async mint(actor: AuthUser, amountInput: string, ip?: string) {
+    const gate = await this.access.principal(actor, 'credit');
+    if (gate.line.role !== 'SUPER_ADMIN') {
+      throw new DomainError('FORBIDDEN');
+    }
     const amount = parseExactMoney(amountInput);
+    const accountId = gate.line.userId;
     return this.prisma.$transaction(async (tx) => {
-      await this.lock(tx, actor.userId);
-      const before = await this.balance(tx, actor.userId);
+      await this.lock(tx, accountId);
+      const before = await this.balance(tx, accountId);
       const after = before.plus(amount);
-      await tx.creditAccount.update({ where: { userId: actor.userId }, data: { balance: formatMoney(after) } });
+      await tx.creditAccount.update({ where: { userId: accountId }, data: { balance: formatMoney(after) } });
       const row = await tx.creditTransaction.create({
         data: {
           id: randomUUID(),
           kind: 'MINT',
-          receiverId: actor.userId,
+          receiverId: accountId,
           amount: formatMoney(amount),
           receiverBefore: formatMoney(before),
           receiverAfter: formatMoney(after),
         },
       });
-      return presentCredit(row);
-    });
-  }
-
-  async burn(actor: AuthUser, amountInput: string) {
-    this.assertAdmin(actor);
-    const amount = parseExactMoney(amountInput);
-    return this.prisma.$transaction(async (tx) => {
-      await this.lock(tx, actor.userId);
-      const before = await this.balance(tx, actor.userId);
-      if (before.lt(amount)) {
-        throw new DomainError('INSUFFICIENT_BALANCE');
-      }
-      const after = before.minus(amount);
-      await tx.creditAccount.update({ where: { userId: actor.userId }, data: { balance: formatMoney(after) } });
-      const row = await tx.creditTransaction.create({
-        data: {
-          id: randomUUID(),
-          kind: 'BURN',
-          senderId: actor.userId,
-          amount: formatMoney(amount),
-          senderBefore: formatMoney(before),
-          senderAfter: formatMoney(after),
-        },
+      await this.audit.append(tx, {
+        actorId: gate.actorId,
+        action: 'CREDIT_MINT',
+        target: accountId,
+        detail: { amount: formatMoney(amount) },
+        ip,
       });
       return presentCredit(row);
     });
   }
 
-  async transfer(actor: AuthUser, receiverId: string, amountInput: string) {
-    if (receiverId === actor.userId) {
+  async burn(actor: AuthUser, amountInput: string, ip?: string) {
+    const gate = await this.access.principal(actor, 'credit');
+    if (gate.line.role !== 'SUPER_ADMIN') {
+      throw new DomainError('FORBIDDEN');
+    }
+    const amount = parseExactMoney(amountInput);
+    const accountId = gate.line.userId;
+    return this.prisma.$transaction(async (tx) => {
+      await this.lock(tx, accountId);
+      const before = await this.balance(tx, accountId);
+      if (before.lt(amount)) {
+        throw new DomainError('INSUFFICIENT_BALANCE');
+      }
+      const after = before.minus(amount);
+      await tx.creditAccount.update({ where: { userId: accountId }, data: { balance: formatMoney(after) } });
+      const row = await tx.creditTransaction.create({
+        data: {
+          id: randomUUID(),
+          kind: 'BURN',
+          senderId: accountId,
+          amount: formatMoney(amount),
+          senderBefore: formatMoney(before),
+          senderAfter: formatMoney(after),
+        },
+      });
+      await this.audit.append(tx, {
+        actorId: gate.actorId,
+        action: 'CREDIT_BURN',
+        target: accountId,
+        detail: { amount: formatMoney(amount) },
+        ip,
+      });
+      return presentCredit(row);
+    });
+  }
+
+  async transfer(actor: AuthUser, receiverId: string, amountInput: string, ip?: string) {
+    const gate = await this.access.principal(actor, 'credit');
+    const senderId = gate.line.userId;
+    if (receiverId === senderId) {
       throw new DomainError('NOT_DIRECT_CHILD');
     }
     const amount = parseExactMoney(amountInput);
     const receiver = await this.prisma.user.findUnique({ where: { id: receiverId } });
-    if (!receiver || !receiver.isActive || receiver.parentId !== actor.userId) {
+    if (!receiver || !receiver.isActive || receiver.parentId !== senderId) {
       throw new DomainError('NOT_DIRECT_CHILD');
     }
     return this.prisma.$transaction(async (tx) => {
-      const [first, second] = [actor.userId, receiverId].sort();
+      const [first, second] = [senderId, receiverId].sort();
       await this.lock(tx, first);
       await this.lock(tx, second);
-      const senderBefore = await this.balance(tx, actor.userId);
+      const senderBefore = await this.balance(tx, senderId);
       if (senderBefore.lt(amount)) {
         throw new DomainError('INSUFFICIENT_BALANCE');
       }
       const receiverBefore = await this.balance(tx, receiverId);
       const senderAfter = senderBefore.minus(amount);
       const receiverAfter = receiverBefore.plus(amount);
-      await tx.creditAccount.update({ where: { userId: actor.userId }, data: { balance: formatMoney(senderAfter) } });
+      await tx.creditAccount.update({ where: { userId: senderId }, data: { balance: formatMoney(senderAfter) } });
       await tx.creditAccount.update({ where: { userId: receiverId }, data: { balance: formatMoney(receiverAfter) } });
       const row = await tx.creditTransaction.create({
         data: {
           id: randomUUID(),
           kind: 'TRANSFER',
-          senderId: actor.userId,
+          senderId,
           receiverId,
           amount: formatMoney(amount),
           senderBefore: formatMoney(senderBefore),
@@ -92,14 +122,15 @@ export class CreditService {
           receiverAfter: formatMoney(receiverAfter),
         },
       });
+      await this.audit.append(tx, {
+        actorId: gate.actorId,
+        action: 'CREDIT_TRANSFER',
+        target: receiverId,
+        detail: { amount: formatMoney(amount), senderId },
+        ip,
+      });
       return presentCredit(row);
     });
-  }
-
-  private assertAdmin(actor: AuthUser): void {
-    if (actor.role !== 'SUPER_ADMIN') {
-      throw new DomainError('FORBIDDEN');
-    }
   }
 
   private async lock(tx: Prisma.TransactionClient, userId: string): Promise<void> {

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import { AccessService } from '../access/access.service.js';
 import { AuditLogService } from '../audit/audit-log.service.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
@@ -17,6 +18,7 @@ export class WithdrawalService {
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly audit: AuditLogService,
+    private readonly access: AccessService,
   ) {}
 
   async create(actor: AuthUser, dto: CreateWithdrawalDto) {
@@ -49,6 +51,7 @@ export class WithdrawalService {
   }
 
   async approve(actor: AuthUser, id: string) {
+    await this.access.denyStaff(actor);
     this.assertAdmin(actor);
     const existing = await this.prisma.withdrawal.findUnique({ where: { id } });
     if (!existing || existing.status !== 'PENDING') {
@@ -105,6 +108,7 @@ export class WithdrawalService {
   }
 
   async reject(actor: AuthUser, id: string) {
+    await this.access.denyStaff(actor);
     this.assertAdmin(actor);
     const updated = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: string; status: string; amount: string }>>`

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { AccessService } from '../access/access.service.js';
 import { AuditLogService } from '../audit/audit-log.service.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
@@ -21,6 +22,7 @@ export class CouponCategoryService {
     private readonly wallet: WalletService,
     private readonly audit: AuditLogService,
     private readonly notifications: NotificationService,
+    private readonly access: AccessService,
   ) {}
 
   async list() {
@@ -49,6 +51,7 @@ export class CouponCategoryService {
   }
 
   async settle(actor: AuthUser, dto: SettleBatchDto) {
+    await this.access.denyStaff(actor);
     return this.settleVerified({
       batchId: dto.batchId,
       top3: dto.top3,

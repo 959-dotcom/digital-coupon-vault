@@ -88,6 +88,21 @@ test('raising the admin base fee keeps an exact split and rejects an over-cap li
   );
 });
 
+test('an admin base of 100 keeps the whole bill and rejects any downline hold', () => {
+  const full = splitHoldWaterfall(bill, new Decimal('100.00'), [], 'admin');
+  assert.equal(full.admin.amount.toFixed(4), '100.0000');
+  assert.equal(sumSlices(full).eq(bill), true);
+  const skipped = splitHoldWaterfall(bill, new Decimal(100), [person('member', '0')], 'admin');
+  assert.equal(skipped.admin.amount.toFixed(4), '100.0000');
+  assert.equal(sumSlices(skipped).eq(bill), true);
+  assert.throws(
+    () => splitHoldWaterfall(bill, new Decimal(100), [person('member', '1')], 'admin'),
+    /HOLD_CAP/,
+  );
+  assert.throws(() => splitHoldWaterfall(bill, new Decimal('4.99'), [], 'admin'), /HOLD_CAP/);
+  assert.throws(() => splitHoldWaterfall(bill, new Decimal('100.01'), [], 'admin'), /HOLD_CAP/);
+});
+
 test('a viewer sees their own line and not a sibling line', () => {
   assert.equal(isSameOrDescendant('admin.master', 'admin.master.shop.member'), true);
   assert.equal(isSameOrDescendant('admin.master.shop', 'admin.master.shop'), true);

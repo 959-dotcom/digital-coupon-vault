@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { AccessModule } from './access/access.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
@@ -17,6 +18,9 @@ import { BillModule } from './bills/bill.module.js';
 import { CreditModule } from './credit/credit.module.js';
 import { HierarchyModule } from './hierarchy/hierarchy.module.js';
 import { LedgerModule } from './ledger/ledger.module.js';
+import { ProductsModule } from './products/products.module.js';
+import { ReportsModule } from './reports/reports.module.js';
+import { StaffModule } from './staff/staff.module.js';
 import { PartnersModule } from './partners/partners.module.js';
 import { NotificationModule } from './notifications/notification.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -35,12 +39,16 @@ import { VaultModule } from './vault/vault.module.js';
     PrismaModule,
     RedisModule,
     AuditModule,
+    AccessModule,
     NotificationModule,
     VaultModule,
     AuthModule,
     HierarchyModule,
     CreditModule,
     BillModule,
+    ProductsModule,
+    ReportsModule,
+    StaffModule,
     CommissionModule,
     PartnersModule,
     CouponsModule,

@@ -14,11 +14,12 @@ export class YeekeeBatchScheduler {
   ) {}
 
   async sync(now: Date): Promise<void> {
-    await this.syncYeekee(now);
+    await this.syncYeekee(now, 'YEEKEE_15M', 'ยี่กี 15 นาที');
+    await this.syncYeekee(now, 'YEEKEE_10M', 'ยี่กี 10 นาที');
   }
 
-  private async syncYeekee(now: Date): Promise<void> {
-    const category = await this.prisma.couponCategory.findUnique({ where: { code: 'YEEKEE_15M' } });
+  private async syncYeekee(now: Date, code: string, labelPrefix: string): Promise<void> {
+    const category = await this.prisma.couponCategory.findUnique({ where: { code } });
     if (!category || !category.isActive) {
       return;
     }
@@ -40,7 +41,7 @@ export class YeekeeBatchScheduler {
           actorId: null,
           action: 'BATCH_SETTLEMENT',
           outcomeExtra: { seedHash: draw.seedHash },
-          detail: { source: 'YEEKEE_15M', seedHash: draw.seedHash },
+          detail: { source: code, seedHash: draw.seedHash },
         });
       } catch (error) {
         if (error instanceof DomainError && error.code === 'BATCH_SETTLED') {
@@ -65,7 +66,7 @@ export class YeekeeBatchScheduler {
     if (existing?.settledAt) {
       return;
     }
-    const label = `ยี่กี งวด ${next.slot} ${formatCalendarDate(next.batchDate)}`;
+    const label = `${labelPrefix} งวด ${next.slot} ${formatCalendarDate(next.batchDate)}`;
     if (!existing) {
       await this.prisma.couponBatch.create({
         data: {

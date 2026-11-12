@@ -78,6 +78,7 @@ export default function HoldPage() {
             <li key={segment.label}>{segment.label}: {segment.text}%</li>
           ))}
         </ul>
+        <p className="text-sm text-white/60">{copy.hold.range}</p>
         <p className="text-sm text-white/60">{bar.data.percentLockMode === 'ADMIN_LOCK' ? copy.hold.lock : copy.hold.self}</p>
         <p className="text-sm">{copy.hold.max}: {bar.data.maxOwnHold}%</p>
         <form

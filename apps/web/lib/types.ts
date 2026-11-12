@@ -7,6 +7,13 @@ export type SessionUser = {
   partnerId: string | null;
   displayName: string;
   commissionOnly?: boolean;
+  isStaff?: boolean;
+  permissions?: {
+    viewBalance: boolean;
+    viewReports: 'all' | 'downline' | 'none';
+    manageCredit: boolean;
+    manageMembers: boolean;
+  } | null;
 };
 
 export type LineNode = {
@@ -39,6 +46,43 @@ export type BillSlice = {
   receivedFromBelow: string;
   ownHold: string;
   sentUpward: string;
+};
+
+export type ReportRow = {
+  userId: string;
+  username: string;
+  member: string;
+  agent: string;
+  master: string;
+  senior: string;
+  company: string;
+  billTotal: string;
+  sentUpward: string;
+  commissionReceived: string;
+};
+
+export type ProductRow = {
+  code: string;
+  name: string;
+  isActive: boolean;
+  ownActive: boolean;
+};
+
+export type StaffRow = {
+  id: string;
+  email: string;
+  displayName: string;
+  permissions: NonNullable<SessionUser['permissions']>;
+};
+
+export type StaffInput = {
+  email: string;
+  password: string;
+  displayName: string;
+  viewBalance: boolean;
+  viewReports: 'all' | 'downline' | 'none';
+  manageCredit: boolean;
+  manageMembers: boolean;
 };
 
 export type LoginResponse = {

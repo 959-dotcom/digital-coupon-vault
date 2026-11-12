@@ -127,6 +127,23 @@ export const CATEGORY_SEEDS: readonly CategorySeed[] = [
     },
   },
   {
+    code: 'YEEKEE_10M',
+    name: 'ยี่กี VIP 10 นาที',
+    description: 'เปิดงวดทุก 10 นาทีตามนาฬิกาเซิร์ฟเวอร์เวลาประเทศไทย',
+    cutoffTime: '00:10',
+    gridMin: 0,
+    gridMax: 999,
+    pad: 3,
+    schedule: {
+      group: 'FLASH',
+      weekdays: null,
+      daysOfMonth: null,
+      sessions: [],
+      intervalMinutes: 10,
+      batchesPerDay: 143,
+    },
+  },
+  {
     code: 'STOCK_SET_TH',
     name: 'หุ้นไทย',
     description: 'ดัชนีหุ้นไทย ตัดยอด 12:30 น. และ 16:40 น. วันจันทร์ถึงศุกร์',

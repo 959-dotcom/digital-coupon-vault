@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AccessService } from '../access/access.service.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
 import { formatMoney, moneyFromDatabase } from '../money/decimal.js';
@@ -25,10 +26,14 @@ export type BillSlice = {
 
 @Injectable()
 export class BillService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: AccessService,
+  ) {}
 
   async list(actor: AuthUser): Promise<BillListItem[]> {
-    const viewer = await this.prisma.user.findUnique({ where: { id: actor.userId } });
+    const gate = await this.access.principal(actor, 'reports');
+    const viewer = await this.prisma.user.findUnique({ where: { id: gate.line.userId } });
     if (!viewer) {
       throw new DomainError('USER_INACTIVE');
     }
@@ -45,6 +50,7 @@ export class BillService {
       JOIN "User" buyer ON buyer.id = t."userId"
       WHERE t.status IN ('CONFIRMED', 'SETTLED')
         AND buyer.path <@ ${viewer.path}::ltree
+        AND (${gate.reportScope}::text <> 'downline' OR buyer.id <> ${viewer.id})
       ORDER BY t."createdAt" DESC
       LIMIT 50
     `;
@@ -59,7 +65,8 @@ export class BillService {
   }
 
   async slice(actor: AuthUser, id: string): Promise<BillSlice> {
-    const viewer = await this.prisma.user.findUnique({ where: { id: actor.userId } });
+    const gate = await this.access.principal(actor, 'reports');
+    const viewer = await this.prisma.user.findUnique({ where: { id: gate.line.userId } });
     if (!viewer) {
       throw new DomainError('USER_INACTIVE');
     }
@@ -76,8 +83,11 @@ export class BillService {
     if (!bill || !isSameOrDescendant(viewer.path, bill.buyerPath)) {
       throw new DomainError('BILL_HIDDEN');
     }
+    if (gate.reportScope === 'downline' && bill.buyerPath === viewer.path) {
+      throw new DomainError('BILL_HIDDEN');
+    }
     const share = await this.prisma.billShare.findUnique({
-      where: { transactionId_userId: { transactionId: id, userId: actor.userId } },
+      where: { transactionId_userId: { transactionId: id, userId: gate.line.userId } },
     });
     return {
       id: bill.id,

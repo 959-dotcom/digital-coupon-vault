@@ -48,7 +48,7 @@ export function parseSchedule(value: unknown): Schedule {
   if ((intervalMinutes === null) !== (batchesPerDay === null)) {
     throw new Error('BAD_CUTOFF');
   }
-  if (intervalMinutes !== null && (intervalMinutes !== 15 || batchesPerDay !== 88)) {
+  if (intervalMinutes !== null && !validYeekeeCadence(intervalMinutes, batchesPerDay)) {
     throw new Error('BAD_CUTOFF');
   }
   if (intervalMinutes === null && sessions.length === 0) {
@@ -96,6 +96,10 @@ export function cutoffForSlot(schedule: Schedule, fallback: string, slot: string
     return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
   }
   return fallback;
+}
+
+function validYeekeeCadence(intervalMinutes: number, batchesPerDay: number | null): boolean {
+  return (intervalMinutes === 15 && batchesPerDay === 88) || (intervalMinutes === 10 && batchesPerDay === 143);
 }
 
 function nextYeekee(now: Date, batchesPerDay: number, intervalMinutes: number): SessionHit {

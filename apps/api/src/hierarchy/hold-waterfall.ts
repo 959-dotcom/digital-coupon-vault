@@ -22,7 +22,7 @@ export type HoldWaterfall = {
 };
 
 export function assertAdminBase(percent: Decimal): void {
-  if (percent.lt(5) || percent.gt(10)) {
+  if (percent.lt(5) || percent.gt(100)) {
     throw new Error('HOLD_CAP');
   }
 }

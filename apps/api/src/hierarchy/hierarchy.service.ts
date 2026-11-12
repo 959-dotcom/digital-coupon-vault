@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { AccessService } from '../access/access.service.js';
+import { AuditLogService } from '../audit/audit-log.service.js';
 import type { AuthUser, RoleName } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
 import { Decimal, ZERO, formatMoney, moneyFromDatabase } from '../money/decimal.js';
@@ -43,7 +45,11 @@ type Settings = {
 
 @Injectable()
 export class HierarchyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: AccessService,
+    private readonly audit: AuditLogService,
+  ) {}
 
   async referral(actor: AuthUser): Promise<{ code: string; path: string }> {
     const user = await this.requireRow(actor.userId);
@@ -51,7 +57,8 @@ export class HierarchyService {
   }
 
   async line(actor: AuthUser): Promise<LineNode[]> {
-    const rows = await this.visibleRows(actor);
+    const gate = await this.access.viewLine(actor);
+    const rows = await this.visibleRows(gate.line);
     const ids = rows.map((row) => row.id);
     const credit = new Map<string, Decimal>();
     const sales = new Map<string, Decimal>();
@@ -77,20 +84,32 @@ export class HierarchyService {
       }
     }
     const rolledSales = rollSales(rows, sales);
-    return buildLine(rows, credit, rolledSales, commission);
+    const nodes = buildLine(rows, credit, rolledSales, commission);
+    if (!gate.showCredit) {
+      blankCredit(nodes);
+    }
+    return nodes;
   }
 
   async createDownline(
     actor: AuthUser,
     input: { email: string; passwordHash: string; displayName: string; commissionOnly: boolean },
   ): Promise<{ id: string; email: string; role: RoleName; referralCode: string }> {
-    return this.provision({
+    const gate = await this.access.principal(actor, 'members');
+    const created = await this.provision({
       email: input.email,
       passwordHash: input.passwordHash,
       displayName: input.displayName,
       commissionOnly: input.commissionOnly,
-      parentId: actor.userId,
+      parentId: gate.line.userId,
     });
+    await this.audit.append(this.prisma, {
+      actorId: gate.actorId,
+      action: 'DOWNLINE_CREATE',
+      target: created.id,
+      detail: { email: created.email, role: created.role },
+    });
+    return created;
   }
 
   async provision(input: {
@@ -135,10 +154,11 @@ export class HierarchyService {
     }
   }
 
-  async updateHold(actor: AuthUser, userId: string, holdInput: string): Promise<{ id: string; holdPercent: string }> {
+  async updateHold(actor: AuthUser, userId: string, holdInput: string, ip?: string): Promise<{ id: string; holdPercent: string }> {
+    const gate = await this.access.principal(actor, 'members');
     const hold = parsePercent(holdInput);
     const target = await this.requireRow(userId);
-    await this.assertCanEditHold(actor, target);
+    await this.assertCanEditHold(gate.line, target);
     if (target.role === 'SUPER_ADMIN') {
       throw new DomainError('HOLD_CAP');
     }
@@ -152,15 +172,30 @@ export class HierarchyService {
       where: { id: target.id },
       data: { holdPercent: hold.toFixed(2) },
     });
+    await this.audit.append(this.prisma, {
+      actorId: gate.actorId,
+      action: 'HOLD_UPDATE',
+      target: updated.id,
+      detail: { holdPercent: moneyPercent(updated.holdPercent) },
+      ip,
+    });
     return { id: updated.id, holdPercent: moneyPercent(updated.holdPercent) };
   }
 
-  async updateMode(actor: AuthUser, userId: string, commissionOnly: boolean): Promise<{ id: string; commissionOnly: boolean }> {
+  async updateMode(actor: AuthUser, userId: string, commissionOnly: boolean, ip?: string): Promise<{ id: string; commissionOnly: boolean }> {
+    const gate = await this.access.principal(actor, 'members');
     const target = await this.requireRow(userId);
-    await this.assertCanToggleMode(actor, target);
+    await this.assertCanToggleMode(gate.line, target);
     const updated = await this.prisma.user.update({
       where: { id: target.id },
       data: { commissionOnly },
+    });
+    await this.audit.append(this.prisma, {
+      actorId: gate.actorId,
+      action: 'MODE_UPDATE',
+      target: updated.id,
+      detail: { commissionOnly },
+      ip,
     });
     return { id: updated.id, commissionOnly: updated.commissionOnly };
   }
@@ -170,11 +205,12 @@ export class HierarchyService {
     adminBaseInput: string,
     percentLockMode: 'ADMIN_LOCK' | 'SELF_MANAGE',
   ): Promise<{ adminBasePercent: string; percentLockMode: 'ADMIN_LOCK' | 'SELF_MANAGE' }> {
+    await this.access.denyStaff(actor);
     if (actor.role !== 'SUPER_ADMIN') {
       throw new DomainError('FORBIDDEN');
     }
     const adminBase = parsePercent(adminBaseInput);
-    if (adminBase.lt(5) || adminBase.gt(10)) {
+    if (adminBase.lt(5) || adminBase.gt(100)) {
       throw new DomainError('HOLD_CAP');
     }
     const rows = await this.prisma.$queryRaw<Array<{ path: string; holdPercent: string; role: string }>>`
@@ -185,10 +221,19 @@ export class HierarchyService {
     if (offenders.length > 0) {
       throw new DomainError('HOLD_CAP');
     }
-    const saved = await this.prisma.systemSetting.upsert({
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.systemSetting.upsert({
       where: { id: 'default' },
       update: { adminBasePercent: adminBase.toFixed(2), percentLockMode },
       create: { id: 'default', adminBasePercent: adminBase.toFixed(2), percentLockMode },
+    });
+      await this.audit.append(tx, {
+        actorId: actor.userId,
+        action: 'SETTINGS_UPDATE',
+        target: 'default',
+        detail: { adminBasePercent: adminBase.toFixed(2), percentLockMode },
+      });
+      return row;
     });
     return {
       adminBasePercent: moneyPercent(saved.adminBasePercent),
@@ -282,6 +327,7 @@ export class HierarchyService {
         SELECT id, email, "displayName", role::text AS role, "parentId", path::text AS path,
                "referralCode", "holdPercent"::text AS "holdPercent", "commissionOnly", "partnerId"
         FROM "User"
+        WHERE "isStaff" = false
         ORDER BY nlevel(path) ASC, email ASC
       `;
     }
@@ -291,6 +337,7 @@ export class HierarchyService {
              "referralCode", "holdPercent"::text AS "holdPercent", "commissionOnly", "partnerId"
       FROM "User"
       WHERE path <@ ${self.path}::ltree
+        AND "isStaff" = false
       ORDER BY nlevel(path) ASC, email ASC
     `;
   }
@@ -451,6 +498,13 @@ function newReferralCode(): string {
 
 function isUnique(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'P2002';
+}
+
+function blankCredit(nodes: LineNode[]): void {
+  for (const node of nodes) {
+    node.credit = '0.0000';
+    blankCredit(node.children);
+  }
 }
 
 function buildLine(

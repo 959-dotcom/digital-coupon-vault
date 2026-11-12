@@ -12,9 +12,21 @@ export type AuditInput = {
     | 'ORACLE_SETTLEMENT'
     | 'WITHDRAWAL_DECISION'
     | 'COMMISSION_RATE_UPDATE'
-    | 'ADMIN_LOGIN';
+    | 'ADMIN_LOGIN'
+    | 'STAFF_LOGIN'
+    | 'STAFF_CREATE'
+    | 'STAFF_UPDATE'
+    | 'HOLD_UPDATE'
+    | 'SETTINGS_UPDATE'
+    | 'CREDIT_MINT'
+    | 'CREDIT_BURN'
+    | 'CREDIT_TRANSFER'
+    | 'PRODUCT_TOGGLE'
+    | 'DOWNLINE_CREATE'
+    | 'MODE_UPDATE';
   target: string;
   detail: Prisma.InputJsonValue;
+  ip?: string | null;
 };
 
 type AuditWriter = PrismaService | Prisma.TransactionClient;
@@ -30,6 +42,7 @@ export class AuditLogService {
         action: input.action,
         target: input.target,
         detail: input.detail,
+        ip: input.ip ?? null,
       },
     });
   }

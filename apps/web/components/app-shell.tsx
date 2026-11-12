@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Bell, HandCoins, LayoutGrid, LogOut, Network, Percent, ReceiptText, Scale, ScrollText, Users, Wallet } from 'lucide-react';
+import { Bell, HandCoins, LayoutGrid, LogOut, Network, Percent, ReceiptText, Scale, ScrollText, Shield, Tags, Users, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -98,6 +98,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: '/network', label: copy.nav.network, icon: Users },
     { href: '/hold', label: copy.nav.hold, icon: Percent },
     { href: '/bills', label: copy.nav.bills, icon: ReceiptText },
+    { href: '/reports', label: copy.nav.reports, icon: ScrollText },
+    { href: '/products', label: copy.nav.products, icon: Tags },
+    { href: '/staff', label: copy.nav.staff, icon: Shield },
     ...(user.commissionOnly ? [] : [{ href: '/catalog', label: copy.nav.catalog, icon: LayoutGrid }]),
     { href: '/orders', label: copy.nav.orders, icon: ReceiptText },
     { href: '/transactions', label: copy.nav.flow, icon: Wallet },

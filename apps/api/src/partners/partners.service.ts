@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { AccessService } from '../access/access.service.js';
 import { AuditLogService } from '../audit/audit-log.service.js';
 import { DomainError } from '../common/domain-error.js';
 import type { AuthUser } from '../auth/auth-user.js';
@@ -53,6 +54,7 @@ export class PartnersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
+    private readonly access: AccessService,
   ) {}
 
   async orgChart(actor: AuthUser): Promise<OrgChartNode[]> {
@@ -83,6 +85,8 @@ export class PartnersService {
   }
 
   async commissionReport(actor: AuthUser, fromInput: string, toInput: string): Promise<CommissionReport> {
+    const gate = await this.access.principal(actor, 'reports');
+    actor = gate.line;
     const fromDay = parseIsoDate(fromInput);
     const toDay = parseIsoDate(toInput);
     const span = Math.round((toDay.getTime() - fromDay.getTime()) / 86_400_000);
@@ -152,6 +156,8 @@ export class PartnersService {
   }
 
   async create(actor: AuthUser, dto: CreatePartnerDto): Promise<PartnerView> {
+    const gate = await this.access.principal(actor, 'members');
+    actor = gate.line;
     const parent = dto.parentId ? await this.requirePartner(dto.parentId) : null;
     if (!parent && actor.role !== 'SUPER_ADMIN') {
       throw new DomainError('PARTNER_SCOPE');
@@ -182,6 +188,8 @@ export class PartnersService {
   }
 
   async update(actor: AuthUser, id: string, dto: UpdatePartnerDto): Promise<PartnerView> {
+    const gate = await this.access.principal(actor, 'members');
+    actor = gate.line;
     if (dto.name === undefined && dto.isActive === undefined) {
       throw new DomainError('INVALID_ITEM');
     }
@@ -198,6 +206,8 @@ export class PartnersService {
   }
 
   async updateCommercial(actor: AuthUser, id: string, dto: UpdateCommercialDto): Promise<PartnerView> {
+    const gate = await this.access.principal(actor, 'members');
+    actor = gate.line;
     if (dto.distributionMode === undefined && dto.commissionRates === undefined) {
       throw new DomainError('INVALID_ITEM');
     }
@@ -218,7 +228,7 @@ export class PartnersService {
       });
       const view = this.toView(row);
       await this.audit.append(tx, {
-        actorId: actor.userId,
+        actorId: gate.actorId,
         action: 'COMMISSION_RATE_UPDATE',
         target: row.id,
         detail: {
@@ -233,6 +243,8 @@ export class PartnersService {
   }
 
   async remove(actor: AuthUser, id: string): Promise<{ id: string; removed: boolean; isActive: boolean }> {
+    const gate = await this.access.principal(actor, 'members');
+    actor = gate.line;
     const partner = await this.requirePartner(id);
     if (actor.role === 'MASTER_PARTNER') {
       await this.assertStrictDescendant(actor, partner.path);

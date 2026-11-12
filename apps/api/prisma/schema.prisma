@@ -86,6 +86,12 @@ model User {
   holdPercent  Decimal    @default(0) @db.Decimal(6, 2)
   /// Commission-only accounts share a link and earn hold, without their own bills.
   commissionOnly Boolean  @default(false)
+  isStaff      Boolean    @default(false)
+  principalId  String?
+  principal    User?      @relation("StaffOf", fields: [principalId], references: [id])
+  staff        User[]     @relation("StaffOf")
+  /// viewBalance, viewReports, manageCredit, manageMembers. Staff only.
+  permissions  Json?
   transactions CouponTx[]
   withdrawals  Withdrawal[]
   notifications Notification[]
@@ -93,11 +99,13 @@ model User {
   creditSent    CreditTransaction[] @relation("CreditSent")
   creditReceived CreditTransaction[] @relation("CreditReceived")
   billShares    BillShare[]
+  lineProducts  LineProduct[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   @@index([partnerId])
   @@index([parentId])
+  @@index([principalId])
 }
 
 model CouponCategory {
@@ -200,6 +208,7 @@ model AdminAuditLog {
   action    String
   target    String
   detail    Json
+  ip        String?
   createdAt DateTime @default(now())
 
   @@index([createdAt])
@@ -247,9 +256,22 @@ model LedgerEntry {
   @@index([accountCode])
 }
 
+model LineProduct {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  code        String
+  isActive    Boolean
+  updatedBy   String
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, code])
+  @@index([code])
+}
+
 model SystemSetting {
   id                String          @id @default("default")
-  adminBasePercent  Decimal         @default(5) @db.Decimal(4, 2)
+  adminBasePercent  Decimal         @default(5) @db.Decimal(5, 2)
   percentLockMode   PercentLockMode @default(ADMIN_LOCK)
   updatedAt         DateTime        @updatedAt
 }

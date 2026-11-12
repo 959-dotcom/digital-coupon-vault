@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { AccessService } from '../access/access.service.js';
 import { AuditLogService } from '../audit/audit-log.service.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
@@ -21,9 +22,11 @@ export class LedgerService {
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly auditLog: AuditLogService,
+    private readonly access: AccessService,
   ) {}
 
   async fund(actor: AuthUser, dto: FundPointsDto) {
+    await this.access.denyStaff(actor);
     if (actor.role !== 'SUPER_ADMIN') {
       throw new DomainError('FORBIDDEN');
     }

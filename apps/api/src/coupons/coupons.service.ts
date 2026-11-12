@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AccessService } from '../access/access.service.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
 import { ZERO, formatMoney, moneyFromDatabase } from '../money/decimal.js';
@@ -10,6 +11,7 @@ import type { CreateOrderDto } from './dto.js';
 import { assertIdempotencyKey } from './dto.js';
 import { IngestionService } from './ingestion.service.js';
 import { CouponCategoryService } from './coupon-category.service.js';
+import { ProductsService } from '../products/products.service.js';
 
 @Injectable()
 export class CouponsService {
@@ -19,6 +21,8 @@ export class CouponsService {
     private readonly rateLimit: RateLimitService,
     private readonly vault: VaultService,
     private readonly categories: CouponCategoryService,
+    private readonly access: AccessService,
+    private readonly products: ProductsService,
   ) {}
 
   listCategories() {
@@ -30,9 +34,15 @@ export class CouponsService {
   }
 
   async placeOrder(actor: AuthUser, dto: CreateOrderDto, idempotencyHeader: string | undefined) {
+    await this.access.denyStaff(actor);
     if (!actor.partnerId) {
       throw new DomainError('NOT_ATTACHED');
     }
+    const category = await this.prisma.couponCategory.findUnique({ where: { id: dto.categoryId } });
+    if (!category || !category.isActive) {
+      throw new DomainError('CATEGORY_INACTIVE');
+    }
+    await this.products.assertOpen(actor.userId, category.code);
     await this.rateLimit.hit(`order:${actor.userId}`, 20, 60);
     const idempotencyKey = assertIdempotencyKey(idempotencyHeader);
     return this.ingestion.enqueueAndWait({
@@ -85,7 +95,8 @@ export class CouponsService {
   }
 
   async myBalance(actor: AuthUser) {
-    const accountCode = `USER_POINTS:${actor.userId}`;
+    const gate = await this.access.principal(actor, 'balance');
+    const accountCode = `USER_POINTS:${gate.line.userId}`;
     const rows = await this.prisma.ledgerEntry.findMany({
       where: { accountCode },
       select: { debit: true, credit: true },

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 import { AuditLogService } from '../audit/audit-log.service.js';
+import { readPermissions } from '../access/permissions.js';
 import { HierarchyService } from '../hierarchy/hierarchy.service.js';
 import { DomainError } from '../common/domain-error.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -33,7 +34,7 @@ export class AuthService {
     return { id: created.id, email: created.email, role: created.role };
   }
 
-  async login(dto: LoginDto, ip: string): Promise<{ accessToken: string; user: AuthUser & { displayName: string; commissionOnly: boolean } }> {
+  async login(dto: LoginDto, ip: string): Promise<{ accessToken: string; user: AuthUser & { displayName: string; commissionOnly: boolean; isStaff: boolean; permissions: ReturnType<typeof readPermissions> | null } }> {
     await this.rateLimit.hit(`login:${ip}`, 10, 60);
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
@@ -54,14 +55,24 @@ export class AuthService {
       role: authUser.role,
       partnerId: authUser.partnerId,
     });
-    if (authUser.role === 'SUPER_ADMIN') {
+    if (authUser.role === 'SUPER_ADMIN' || user.isStaff) {
       await this.audit.append(this.prisma, {
         actorId: authUser.userId,
-        action: 'ADMIN_LOGIN',
+        action: user.isStaff ? 'STAFF_LOGIN' : 'ADMIN_LOGIN',
         target: authUser.userId,
         detail: { email: authUser.email },
+        ip,
       });
     }
-    return { accessToken, user: { ...authUser, displayName: user.displayName, commissionOnly: user.commissionOnly } };
+    return {
+      accessToken,
+      user: {
+        ...authUser,
+        displayName: user.displayName,
+        commissionOnly: user.commissionOnly,
+        isStaff: user.isStaff,
+        permissions: user.isStaff ? readPermissions(user.permissions) : null,
+      },
+    };
   }
 }

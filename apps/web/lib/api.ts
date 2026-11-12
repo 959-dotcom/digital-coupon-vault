@@ -19,6 +19,10 @@ import type {
   LineNode,
   BillListItem,
   BillSlice,
+  ReportRow,
+  ProductRow,
+  StaffRow,
+  StaffInput,
   AdminWithdrawal,
 } from './types';
 
@@ -117,6 +121,27 @@ export const api = {
   },
   bill(id: string) {
     return request<BillSlice>(`/bills/${id}`);
+  },
+  report(preset: 'today' | '3' | '7' | '30' | 'custom', from?: string, to?: string) {
+    const params = new URLSearchParams({ preset });
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    return request<{ rows: ReportRow[] }>(`/reports?${params.toString()}`);
+  },
+  products() {
+    return request<ProductRow[]>('/products');
+  },
+  setProduct(code: string, isActive: boolean) {
+    return request<{ code: string; isActive: boolean }>(`/products/${code}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive }),
+    });
+  },
+  staff() {
+    return request<StaffRow[]>('/staff');
+  },
+  createStaff(body: StaffInput) {
+    return request<{ id: string }>('/staff', { method: 'POST', body: JSON.stringify(body) });
   },
   mintCredit(amount: string) {
     return request<{ id: string; amount: string }>('/credit/mint', { method: 'POST', body: JSON.stringify({ amount }) });
