@@ -41,6 +41,16 @@ function splitConnection(databaseUrl: string): Parts | null {
   return { user, password, host, port, database, params: new URLSearchParams(match[5] || '') };
 }
 
+const EXPECTED_POOLER_USER = 'postgres.ztrxeqigiahjoeeotqqh';
+
+export function databaseUserIsExpected(databaseUrl: string): boolean | null {
+  const parts = splitConnection(databaseUrl);
+  if (!parts) {
+    return null;
+  }
+  return parts.user.trim() === EXPECTED_POOLER_USER;
+}
+
 function formatConnection(parts: Parts): string {
   const user = encodeURIComponent(parts.user);
   const auth = parts.password.length > 0 ? `${user}:${encodeURIComponent(parts.password)}` : user;

@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { resolveDatabaseUrl } from './database-url.js';
+import { databaseUserIsExpected, resolveDatabaseUrl } from './database-url.js';
 import { PrismaService } from './prisma.service.js';
 
 @Global()
@@ -10,7 +10,9 @@ import { PrismaService } from './prisma.service.js';
       provide: PrismaService,
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => {
-        const connectionString = await resolveDatabaseUrl(config.getOrThrow<string>('DATABASE_URL'));
+        const configured = config.getOrThrow<string>('DATABASE_URL');
+        console.error(`[db-user-expected] ${databaseUserIsExpected(configured)}`);
+        const connectionString = await resolveDatabaseUrl(configured);
         return new PrismaService(connectionString);
       },
     },
