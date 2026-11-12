@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 import { AuditLogService } from '../audit/audit-log.service.js';
+import { HierarchyService } from '../hierarchy/hierarchy.service.js';
 import { DomainError } from '../common/domain-error.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RateLimitService } from '../redis/rate-limit.service.js';
@@ -17,9 +18,22 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly rateLimit: RateLimitService,
     private readonly audit: AuditLogService,
+    private readonly hierarchy: HierarchyService,
   ) {}
 
-  async login(dto: LoginDto, ip: string): Promise<{ accessToken: string; user: AuthUser & { displayName: string } }> {
+  async register(dto: { email: string; password: string; displayName: string; ref: string }) {
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const created = await this.hierarchy.provision({
+      email: dto.email,
+      passwordHash,
+      displayName: dto.displayName,
+      commissionOnly: false,
+      referralCode: dto.ref.trim(),
+    });
+    return { id: created.id, email: created.email, role: created.role };
+  }
+
+  async login(dto: LoginDto, ip: string): Promise<{ accessToken: string; user: AuthUser & { displayName: string; commissionOnly: boolean } }> {
     await this.rateLimit.hit(`login:${ip}`, 10, 60);
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
@@ -48,6 +62,6 @@ export class AuthService {
         detail: { email: authUser.email },
       });
     }
-    return { accessToken, user: { ...authUser, displayName: user.displayName } };
+    return { accessToken, user: { ...authUser, displayName: user.displayName, commissionOnly: user.commissionOnly } };
   }
 }

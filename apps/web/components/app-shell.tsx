@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Bell, HandCoins, LayoutGrid, LogOut, Network, ReceiptText, Scale, ScrollText, Wallet } from 'lucide-react';
+import { Bell, HandCoins, LayoutGrid, LogOut, Network, Percent, ReceiptText, Scale, ScrollText, Users, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -10,6 +10,34 @@ import { useAuth } from '@/lib/auth-store';
 import { copy, roleLabel } from '@/lib/copy';
 import { formatPoints } from '@/lib/money';
 import { cn } from '@/lib/utils';
+
+export function ReferralLink({ path }: { path: string | undefined }) {
+  const [copied, setCopied] = useState(false);
+  if (!path) {
+    return null;
+  }
+  const link = typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-card px-3 py-2 text-sm">
+      <div className="min-w-0">
+        <p className="text-[11px] text-white/50">{copy.referral.title}</p>
+        <p className="truncate font-mono text-xs">{link}</p>
+      </div>
+      <button
+        type="button"
+        className="shrink-0 text-xs text-brass"
+        onClick={() => {
+          void navigator.clipboard.writeText(link).then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+          });
+        }}
+      >
+        {copied ? copy.referral.copied : copy.referral.copy}
+      </button>
+    </div>
+  );
+}
 
 export function useSessionReady() {
   const [ready, setReady] = useState(false);
@@ -52,6 +80,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <p className="px-5 py-16 text-center text-sm text-ink/60">{copy.states.loading}</p>;
   }
 
+  const referral = useQuery({
+    queryKey: ['referral'],
+    queryFn: () => api.referral(),
+    enabled: ready && Boolean(user),
+  });
   const partnerNav = user.role !== 'MEMBER';
   const links = [
     ...(user.role === 'SUPER_ADMIN'
@@ -62,7 +95,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ]
       : []),
     ...(partnerNav ? [{ href: '/hierarchy', label: copy.nav.hierarchy, icon: Network }] : []),
-    { href: '/catalog', label: copy.nav.catalog, icon: LayoutGrid },
+    { href: '/network', label: copy.nav.network, icon: Users },
+    { href: '/hold', label: copy.nav.hold, icon: Percent },
+    { href: '/bills', label: copy.nav.bills, icon: ReceiptText },
+    ...(user.commissionOnly ? [] : [{ href: '/catalog', label: copy.nav.catalog, icon: LayoutGrid }]),
     { href: '/orders', label: copy.nav.orders, icon: ReceiptText },
     { href: '/transactions', label: copy.nav.flow, icon: Wallet },
   ];
@@ -98,7 +134,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </header>
-      <main className="px-4 py-4">{children}</main>
+      <main className="space-y-4 px-4 py-4">
+        <ReferralLink path={referral.data?.path} />
+        {children}
+      </main>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-[#0a0a0a]/95 text-white backdrop-blur">
         <div className="mx-auto flex max-w-lg">
           {links.map((link) => {

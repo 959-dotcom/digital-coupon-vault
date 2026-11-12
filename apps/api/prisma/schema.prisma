@@ -34,6 +34,17 @@ enum AccountType {
   EXPENSE
 }
 
+enum PercentLockMode {
+  ADMIN_LOCK
+  SELF_MANAGE
+}
+
+enum CreditKind {
+  MINT
+  BURN
+  TRANSFER
+}
+
 model Partner {
   id               String             @id @default(uuid())
   code             String             @unique
@@ -65,13 +76,28 @@ model User {
   partnerId    String?
   partner      Partner?   @relation(fields: [partnerId], references: [id])
   isActive     Boolean    @default(true)
+  parentId     String?
+  parent       User?      @relation("UserLine", fields: [parentId], references: [id])
+  children     User[]     @relation("UserLine")
+  /// PostgreSQL ltree of referral codes from the root account.
+  path         String     @unique
+  referralCode String     @unique
+  /// Percent of a bill this account keeps. The rest rolls up. 0 skips them.
+  holdPercent  Decimal    @default(0) @db.Decimal(6, 2)
+  /// Commission-only accounts share a link and earn hold, without their own bills.
+  commissionOnly Boolean  @default(false)
   transactions CouponTx[]
   withdrawals  Withdrawal[]
   notifications Notification[]
+  creditAccount CreditAccount?
+  creditSent    CreditTransaction[] @relation("CreditSent")
+  creditReceived CreditTransaction[] @relation("CreditReceived")
+  billShares    BillShare[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   @@index([partnerId])
+  @@index([parentId])
 }
 
 model CouponCategory {
@@ -130,6 +156,7 @@ model CouponTx {
   createdAt      DateTime
   confirmedAt    DateTime?
   commissions    CommissionRecord[]
+  billShares     BillShare[]
 
   @@index([userId, createdAt])
   @@index([partnerId])
@@ -218,4 +245,52 @@ model LedgerEntry {
 
   @@index([transactionId])
   @@index([accountCode])
+}
+
+model SystemSetting {
+  id                String          @id @default("default")
+  adminBasePercent  Decimal         @default(5) @db.Decimal(4, 2)
+  percentLockMode   PercentLockMode @default(ADMIN_LOCK)
+  updatedAt         DateTime        @updatedAt
+}
+
+model CreditAccount {
+  userId  String  @id
+  user    User    @relation(fields: [userId], references: [id])
+  balance Decimal @default(0) @db.Decimal(15, 4)
+}
+
+model CreditTransaction {
+  id              String     @id @default(uuid())
+  kind            CreditKind
+  senderId        String?
+  sender          User?      @relation("CreditSent", fields: [senderId], references: [id])
+  receiverId      String?
+  receiver        User?      @relation("CreditReceived", fields: [receiverId], references: [id])
+  amount          Decimal    @db.Decimal(15, 4)
+  senderBefore    Decimal?   @db.Decimal(15, 4)
+  senderAfter     Decimal?   @db.Decimal(15, 4)
+  receiverBefore  Decimal?   @db.Decimal(15, 4)
+  receiverAfter   Decimal?   @db.Decimal(15, 4)
+  createdAt       DateTime   @default(now())
+
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
+}
+
+/// Immutable slice of a confirmed bill. One row per account on the seller's line.
+model BillShare {
+  id                 String   @id @default(uuid())
+  transactionId      String
+  transaction        CouponTx @relation(fields: [transactionId], references: [id])
+  userId             String
+  user               User     @relation(fields: [userId], references: [id])
+  holdPercent        Decimal  @db.Decimal(6, 2)
+  amount             Decimal  @db.Decimal(15, 4)
+  receivedFromBelow  Decimal  @db.Decimal(15, 4)
+  sentUpward         Decimal  @db.Decimal(15, 4)
+  createdAt          DateTime @default(now())
+
+  @@unique([transactionId, userId])
+  @@index([userId])
 }

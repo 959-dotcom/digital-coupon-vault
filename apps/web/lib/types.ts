@@ -6,6 +6,39 @@ export type SessionUser = {
   role: RoleName;
   partnerId: string | null;
   displayName: string;
+  commissionOnly?: boolean;
+};
+
+export type LineNode = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: string;
+  referralCode: string;
+  holdPercent: string;
+  commissionOnly: boolean;
+  credit: string;
+  sales: string;
+  commission: string;
+  children: LineNode[];
+};
+
+export type BillListItem = {
+  id: string;
+  totalAmount: string;
+  status: string;
+  createdAt: string;
+  buyerName: string;
+  own: boolean;
+};
+
+export type BillSlice = {
+  id: string;
+  totalAmount: string;
+  status: string;
+  receivedFromBelow: string;
+  ownHold: string;
+  sentUpward: string;
 };
 
 export type LoginResponse = {

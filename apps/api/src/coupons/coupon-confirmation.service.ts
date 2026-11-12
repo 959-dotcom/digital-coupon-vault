@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { DomainError } from '../common/domain-error.js';
 import { CommissionEngineService } from '../commission/commission-engine.service.js';
+import { HierarchyService } from '../hierarchy/hierarchy.service.js';
 import { cutoffInstant } from '../cutoff/cutoff.js';
 import { cutoffForSlot, parseSchedule } from './schedule.js';
 import { formatMoney, formatRate, moneyFromDatabase } from '../money/decimal.js';
@@ -21,6 +22,7 @@ export class CouponConfirmationService {
     private readonly wallet: WalletService,
     private readonly commission: CommissionEngineService,
     private readonly vault: VaultService,
+    private readonly hierarchy: HierarchyService,
   ) {}
 
   async confirm(job: ConfirmOrderJob): Promise<OrderReceipt> {
@@ -101,6 +103,7 @@ export class CouponConfirmationService {
               memo: line.memo,
             })),
           });
+          await this.hierarchy.recordBillShares(tx, job.userId, prepared.total, id);
           if (allocation.payable.length > 0) {
             await tx.commissionRecord.createMany({
               data: allocation.payable.map((share) => ({
@@ -155,6 +158,9 @@ export class CouponConfirmationService {
     const user = await this.prisma.user.findUnique({ where: { id: job.userId } });
     if (!user || !user.isActive) {
       throw new DomainError('USER_INACTIVE');
+    }
+    if (user.commissionOnly) {
+      throw new DomainError('COMMISSION_ONLY');
     }
     if (!user.partnerId || user.partnerId !== job.partnerId) {
       throw new DomainError('NOT_ATTACHED');

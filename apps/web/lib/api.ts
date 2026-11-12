@@ -16,6 +16,9 @@ import type {
   PointLine,
   TransactionView,
   WithdrawalView,
+  LineNode,
+  BillListItem,
+  BillSlice,
   AdminWithdrawal,
 } from './types';
 
@@ -64,6 +67,65 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const api = {
   login(body: { email: string; password: string }) {
     return request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(body) });
+  },
+  register(body: { email: string; password: string; displayName: string; ref: string }) {
+    return request<{ id: string; email: string; role: string }>('/auth/register', { method: 'POST', body: JSON.stringify(body) });
+  },
+  referral() {
+    return request<{ code: string; path: string }>('/me/referral');
+  },
+  holdBar() {
+    return request<{
+      adminBasePercent: string;
+      percentLockMode: 'ADMIN_LOCK' | 'SELF_MANAGE';
+      uplineHolds: Array<{ id: string; displayName: string; holdPercent: string }>;
+      ownHoldPercent: string;
+      remainingDownlineQuota: string;
+      maxOwnHold: string;
+      canEditOwn: boolean;
+    }>('/me/hold');
+  },
+  network() {
+    return request<LineNode[]>('/network');
+  },
+  createDownline(body: { email: string; password: string; displayName: string; commissionOnly: boolean }) {
+    return request<{ id: string; email: string; role: string; referralCode: string }>('/network/downline', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  updateHold(id: string, holdPercent: string) {
+    return request<{ id: string; holdPercent: string }>(`/network/${id}/hold`, {
+      method: 'PATCH',
+      body: JSON.stringify({ holdPercent }),
+    });
+  },
+  updateAccountMode(id: string, commissionOnly: boolean) {
+    return request<{ id: string; commissionOnly: boolean }>(`/network/${id}/mode`, {
+      method: 'PATCH',
+      body: JSON.stringify({ commissionOnly }),
+    });
+  },
+  updateSystemSettings(body: { adminBasePercent: string; percentLockMode: 'ADMIN_LOCK' | 'SELF_MANAGE' }) {
+    return request<{ adminBasePercent: string; percentLockMode: string }>('/system/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  },
+  bills() {
+    return request<BillListItem[]>('/bills');
+  },
+  bill(id: string) {
+    return request<BillSlice>(`/bills/${id}`);
+  },
+  mintCredit(amount: string) {
+    return request<{ id: string; amount: string }>('/credit/mint', { method: 'POST', body: JSON.stringify({ amount }) });
+  },
+  transferCredit(receiverId: string, amount: string) {
+    return request<{ id: string; receiverId: string | null; amount: string }>('/credit/transfer', {
+      method: 'POST',
+      body: JSON.stringify({ receiverId, amount }),
+    });
   },
   categories() {
     return request<CategoryView[]>('/api/v1/categories');

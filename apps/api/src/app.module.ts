@@ -13,6 +13,9 @@ import { CouponsModule } from './coupons/coupons.module.js';
 import { CronModule } from './cron/cron.module.js';
 import { HealthController } from './health.controller.js';
 import { HmacGuard } from './hmac/hmac.guard.js';
+import { BillModule } from './bills/bill.module.js';
+import { CreditModule } from './credit/credit.module.js';
+import { HierarchyModule } from './hierarchy/hierarchy.module.js';
 import { LedgerModule } from './ledger/ledger.module.js';
 import { PartnersModule } from './partners/partners.module.js';
 import { NotificationModule } from './notifications/notification.module.js';
@@ -35,6 +38,9 @@ import { VaultModule } from './vault/vault.module.js';
     NotificationModule,
     VaultModule,
     AuthModule,
+    HierarchyModule,
+    CreditModule,
+    BillModule,
     CommissionModule,
     PartnersModule,
     CouponsModule,
