@@ -170,10 +170,10 @@ export const api = {
       hasPin: boolean;
       role: string;
       isStaff: boolean;
-    }>('/me/profile');
+    }>('/auth/me/profile');
   },
   changePin(body: { currentPin?: string; pin: string; pinConfirm: string }) {
-    return request<{ changed: true }>('/me/pin', { method: 'PATCH', body: JSON.stringify(body) });
+    return request<{ changed: true }>('/auth/me/pin', { method: 'PATCH', body: JSON.stringify(body) });
   },
   cash() {
     return request<{ available: string }>('/me/cash');

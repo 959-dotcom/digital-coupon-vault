@@ -45,10 +45,10 @@ export function buildCouponLedger(input: {
   const lines: LedgerLine[] = [
     {
       accountType: 'LIABILITY',
-      accountCode: `USER_POINTS:${input.userId}`,
+      accountCode: `USER_CASH:${input.userId}`,
       debit: input.total,
       credit: ZERO,
-      memo: 'REDEEM_POINTS',
+      memo: 'PURCHASE_CASH',
     },
     {
       accountType: 'REVENUE',

@@ -3,7 +3,7 @@ import test from 'node:test';
 import bcrypt from 'bcrypt';
 import { DomainError } from '../src/common/domain-error.js';
 import { assertPinPair, assertRegistration, assertThaiMobile } from '../src/auth/registration.js';
-import { reserveSlip, settleLocked } from '../src/deposits/deposit-decision.js';
+import { decisionEdit, reserveSlip, settleLocked } from '../src/deposits/deposit-decision.js';
 import { allocateSatang, buildPromptPayPayload, formatExactAmount, payableTotal, parseMatchAmount, parseWholeBaht } from '../src/deposits/promptpay.js';
 import { Decimal } from '../src/money/decimal.js';
 
@@ -69,8 +69,35 @@ test('two concurrent approvals credit once and a later reject changes nothing', 
   assert.equal(first.credited !== second.credited, true);
   const after = await settleLocked(lock, read, write, credit, 'reject');
   assert.equal(after.credited, false);
+  assert.equal(after.changed, false);
   assert.equal(credits, 1);
   assert.equal(status, 'PAID');
+});
+
+test('a decided Telegram message drops the keyboard and names the outcome', () => {
+  const approved = decisionEdit({
+    chatId: '100',
+    messageId: 7,
+    photo: false,
+    original: 'ชื่อ: นา นา\nยอด: 140.00',
+    action: 'approve',
+  });
+  assert.equal(approved.method, 'editMessageText');
+  assert.equal(approved.body.chat_id, '100');
+  assert.equal(approved.body.message_id, 7);
+  assert.deepEqual(approved.body.reply_markup, { inline_keyboard: [] });
+  assert.match(String(approved.body.text), /อนุมัติแล้ว$/);
+  const rejected = decisionEdit({
+    chatId: '100',
+    messageId: 8,
+    photo: true,
+    original: 'ยอด: 140.00',
+    action: 'reject',
+  });
+  assert.equal(rejected.method, 'editMessageCaption');
+  assert.deepEqual(rejected.body.reply_markup, { inline_keyboard: [] });
+  assert.match(String(rejected.body.caption), /ปฏิเสธแล้ว$/);
+  assert.equal('text' in rejected.body, false);
 });
 
 test('a bad PIN is rejected and registration rejects a bad phone or a mismatched PIN', async () => {

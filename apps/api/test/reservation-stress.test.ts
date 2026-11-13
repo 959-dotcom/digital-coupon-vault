@@ -75,10 +75,10 @@ test('concurrent reservations cannot overspend one balance', { timeout: 30_000 }
         {
           transactionId: fundingId,
           accountType: 'LIABILITY',
-          accountCode: `USER_POINTS:${userId}`,
+          accountCode: `USER_CASH:${userId}`,
           debit: '0.0000',
           credit: '10.0000',
-          memo: 'FUND_POINTS',
+          memo: 'FUND_CASH',
         },
       ],
     });
@@ -108,7 +108,7 @@ test('concurrent reservations cannot overspend one balance', { timeout: 30_000 }
                 {
                   transactionId,
                   accountType: 'LIABILITY',
-                  accountCode: `USER_POINTS:${userId}`,
+                  accountCode: `USER_CASH:${userId}`,
                   debit: '4.0000',
                   credit: '0.0000',
                   memo: 'REDEEM_POINTS',
@@ -133,7 +133,7 @@ test('concurrent reservations cannot overspend one balance', { timeout: 30_000 }
     const spent = outcomes.filter(Boolean).length;
     assert.equal(spent, 2);
     const rows = await prisma.ledgerEntry.findMany({
-      where: { accountCode: `USER_POINTS:${userId}` },
+      where: { accountCode: `USER_CASH:${userId}` },
       select: { debit: true, credit: true },
     });
     let available = new Decimal(0);

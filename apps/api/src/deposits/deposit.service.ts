@@ -9,7 +9,7 @@ import { Decimal, formatMoney, moneyFromDatabase } from '../money/decimal.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { buildDepositLedger } from '../money/ledger.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { settleLocked, type ReviewStatus } from './deposit-decision.js';
+import { decisionEdit, settleLocked, type ReviewStatus } from './deposit-decision.js';
 import { allocateSatang, buildPromptPayPayload, formatExactAmount, normalizePromptPayTarget, parseMatchAmount, parseWholeBaht, payableTotal } from './promptpay.js';
 
 const DEPOSIT_TTL_MS = 15 * 60 * 1000;
@@ -290,16 +290,16 @@ export class DepositService {
     }
     const action = matched[1] === 'approve' ? 'approve' : 'reject';
     const depositId = matched[2];
-    await this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: string; status: string; userId: string; amount: string }>>`
         SELECT id, status::text AS status, "userId", amount::text AS amount
         FROM "Deposit" WHERE id = ${depositId} FOR UPDATE
       `;
       const row = locked[0];
       if (!row) {
-        return;
+        return null;
       }
-      await settleLocked(
+      return settleLocked(
         async (fn) => fn(),
         async () => ({ status: row.status }),
         async (status) => {
@@ -319,6 +319,19 @@ export class DepositService {
         action,
       );
     });
+    const message = query.message;
+    if (outcome?.changed && message?.message_id) {
+      const photo = Array.isArray(message.photo) && message.photo.length > 0;
+      const edit = decisionEdit({
+        chatId: String(message.chat.id),
+        messageId: message.message_id,
+        photo,
+        original: photo ? (message.caption ?? '') : (message.text ?? ''),
+        action,
+      });
+      const result = await telegramJson(settings.telegramBotToken, edit.method, edit.body);
+      await this.recordTelegramFailure(`telegram:${query.from.id}`, depositId, result);
+    }
     await this.answerCallback(settings.telegramBotToken, query.id);
   }
 
@@ -494,7 +507,13 @@ type TelegramUpdate = {
     id: string;
     from: { id: number };
     data?: string;
-    message?: { chat: { id: number } };
+    message?: {
+      message_id?: number;
+      chat: { id: number };
+      text?: string;
+      caption?: string;
+      photo?: Array<{ file_id: string }>;
+    };
   };
 };
 

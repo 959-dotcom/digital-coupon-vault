@@ -50,7 +50,6 @@ export class CouponConfirmationService {
     }
 
     const prepared = await this.prepare(job);
-    await this.wallet.reserve(job.userId, prepared.total, job.idempotencyKey);
     try {
       const receipt = await this.prisma.$transaction(
         async (tx) => {
