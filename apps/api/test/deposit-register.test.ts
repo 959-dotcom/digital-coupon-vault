@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { DomainError } from '../src/common/domain-error.js';
 import { assertPinPair, assertRegistration, assertThaiMobile } from '../src/auth/registration.js';
 import { reserveSlip, settleLocked } from '../src/deposits/deposit-decision.js';
-import { allocateSatang, buildPromptPayPayload, payableTotal, parseWholeBaht } from '../src/deposits/promptpay.js';
+import { allocateSatang, buildPromptPayPayload, formatExactAmount, payableTotal, parseMatchAmount, parseWholeBaht } from '../src/deposits/promptpay.js';
 import { Decimal } from '../src/money/decimal.js';
 
 test('two pending deposits never share a satang', () => {
@@ -14,7 +14,8 @@ test('two pending deposits never share a satang', () => {
   const second = allocateSatang(used);
   assert.notEqual(first, second);
   assert.equal(payableTotal(parseWholeBaht('100'), first).toFixed(2), `100.${String(first).padStart(2, '0')}`);
-  assert.throws(() => allocateSatang(Array.from({ length: 99 }, (_, index) => index + 1)), DomainError);
+  assert.equal(allocateSatang([]), 0);
+  assert.throws(() => allocateSatang(Array.from({ length: 100 }, (_, index) => index)), DomainError);
   assert.throws(() => parseWholeBaht('100.50'), DomainError);
 });
 
@@ -26,6 +27,11 @@ test('an empty PromptPay target does not build a QR payload', () => {
   assert.match(payload, /^000201/);
   assert.match(payload, /5303764/);
   assert.match(payload, /5406100\.37/);
+  assert.equal(formatExactAmount(new Decimal('300.0100')), '300.01');
+  assert.equal(parseMatchAmount('300.01').toFixed(2), '300.01');
+  assert.equal(parseMatchAmount('300.0100').toFixed(2), '300.01');
+  const charged = buildPromptPayPayload('0800000000', new Decimal('300.0100'));
+  assert.match(charged ?? '', /5406300\.01/);
   assert.doesNotThrow(() => buildPromptPayPayload('  ', new Decimal('1.00')));
 });
 

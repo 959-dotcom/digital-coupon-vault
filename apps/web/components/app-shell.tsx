@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Bell, CircleUser, House, LogOut, ScrollText, Wallet } from 'lucide-react';
+import { Bell, ChevronLeft, CircleUser, House, LogOut, ScrollText, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -40,6 +40,9 @@ export function ReferralLink({ path }: { path: string | undefined }) {
 }
 
 export function tabActive(pathname: string, href: string): boolean {
+  if (href === '/catalog') {
+    return pathname === '/catalog' || pathname.startsWith('/catalog/');
+  }
   if (href === '/money') {
     return ['/money', '/deposit', '/withdraw'].includes(pathname);
   }
@@ -47,11 +50,24 @@ export function tabActive(pathname: string, href: string): boolean {
     return ['/reports', '/network', '/history', '/bills', '/hierarchy', '/hold'].some((path) => pathname === path || pathname.startsWith(`${path}/`));
   }
   if (href === '/account') {
-    return ['/account', '/staff', '/products', '/catalog', '/orders', '/settlement', '/withdrawals', '/audit-logs', '/notifications'].some(
+    return ['/account', '/staff', '/products', '/orders', '/settlement', '/withdrawals', '/audit-logs', '/notifications'].some(
       (path) => pathname === path || pathname.startsWith(`${path}/`),
     );
   }
   return pathname === href;
+}
+
+function backTarget(pathname: string): string {
+  if (pathname.startsWith('/catalog/')) {
+    return '/catalog';
+  }
+  if (pathname === '/deposit' || pathname === '/withdraw') {
+    return '/money';
+  }
+  if (['/history', '/network', '/bills', '/hierarchy', '/hold'].some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+    return '/reports';
+  }
+  return '/catalog';
 }
 
 export function useSessionReady() {
@@ -100,7 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <p className="px-5 py-16 text-center text-sm text-ink/60">{copy.states.loading}</p>;
   }
   const links = [
-    { href: '/home', label: copy.nav.home, icon: House },
+    { href: '/catalog', label: copy.nav.home, icon: House },
     { href: '/money', label: copy.nav.money, icon: Wallet },
     { href: '/reports', label: copy.nav.reports, icon: ScrollText },
     { href: '/account', label: copy.nav.account, icon: CircleUser },
@@ -138,7 +154,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="space-y-4 px-4 py-4">
-        {pathname === '/home' ? <ReferralLink path={referral.data?.path} /> : null}
+        {pathname !== '/catalog' ? (
+          <Link href={backTarget(pathname)} className="inline-flex min-h-12 items-center gap-1 text-base font-medium text-white">
+            <ChevronLeft className="h-5 w-5" />
+            {copy.nav.back}
+          </Link>
+        ) : null}
+        {pathname === '/catalog' ? <ReferralLink path={referral.data?.path} /> : null}
         {children}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-[#0a0a0a]/95 text-white backdrop-blur">

@@ -4,7 +4,6 @@ import { Prisma } from '../generated/prisma/client.js';
 import { DomainError } from '../common/domain-error.js';
 import { CommissionEngineService } from '../commission/commission-engine.service.js';
 import { HierarchyService } from '../hierarchy/hierarchy.service.js';
-import { ProductsService } from '../products/products.service.js';
 import { cutoffInstant } from '../cutoff/cutoff.js';
 import { cutoffForSlot, parseSchedule } from './schedule.js';
 import { formatMoney, formatRate, moneyFromDatabase } from '../money/decimal.js';
@@ -24,7 +23,6 @@ export class CouponConfirmationService {
     private readonly commission: CommissionEngineService,
     private readonly vault: VaultService,
     private readonly hierarchy: HierarchyService,
-    private readonly products: ProductsService,
   ) {}
 
   async confirm(job: ConfirmOrderJob): Promise<OrderReceipt> {
@@ -171,7 +169,6 @@ export class CouponConfirmationService {
     if (!category || !category.isActive) {
       throw new DomainError('CATEGORY_INACTIVE');
     }
-    await this.products.assertOpen(user.id, category.code);
     const batch = await this.prisma.couponBatch.findUnique({ where: { id: job.batchId } });
     if (!batch || !batch.isOpen || batch.settledAt || batch.categoryId !== category.id) {
       throw new DomainError('BATCH_CLOSED');

@@ -115,6 +115,7 @@ export default function AccountPage() {
       {admin ? (
         <Card className="space-y-3 p-4">
           <h2 className="font-semibold">{copy.account.telegram}</h2>
+          {settings.data && !settings.data.telegramConfigured ? <p className="text-sm text-white/70">{copy.account.telegramMissing}</p> : null}
           <form
             className="space-y-3"
             onSubmit={(event: FormEvent) => {

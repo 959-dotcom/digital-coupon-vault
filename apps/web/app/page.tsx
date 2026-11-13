@@ -19,7 +19,7 @@ export default function HomePage() {
       router.replace('/login');
       return;
     }
-    router.replace('/home');
+    router.replace('/catalog');
   }, [ready, user, router]);
 
   return <p className="px-5 py-16 text-center text-sm text-ink/60">{copy.states.loading}</p>;

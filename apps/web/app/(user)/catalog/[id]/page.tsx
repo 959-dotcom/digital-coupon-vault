@@ -1,11 +1,11 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Decimal } from 'decimal.js';
 import { ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { DigitMatrix } from '@/components/digit-matrix';
+import { StakePad } from '@/components/stake-pad';
 import { StatePanel } from '@/components/state-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,8 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ApiError, api } from '@/lib/api';
 import { copy, statusLabel } from '@/lib/copy';
-import { PRESET_STAKES, formatPoints, livePointsTotal } from '@/lib/money';
+import { formatPoints, livePointsTotal } from '@/lib/money';
+import { addPermutations, addStake } from '@/lib/slip-lines';
 import type { OrderReceipt, SelectionType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -28,11 +29,9 @@ export default function CatalogDeskPage() {
     queryKey: ['category', params.id],
     queryFn: () => api.category(params.id),
   });
-  const [open, setOpen] = useState(true);
   const [family, setFamily] = useState<Family>('TOP_3');
   const [floatType, setFloatType] = useState<FloatType>('RUNNING_MIX');
   const [digits, setDigits] = useState('');
-  const [stake, setStake] = useState<string | null>(null);
   const [lines, setLines] = useState<SlipLine[]>([]);
   const [receipt, setReceipt] = useState<OrderReceipt | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -40,7 +39,6 @@ export default function CatalogDeskPage() {
   const pad = category.data?.pad ?? 3;
   const selectionType: SelectionType = family === 'FLOAT' ? floatType : family;
   const length = digitLength(selectionType);
-  const activeStake = stake ?? PRESET_STAKES[0];
   const batch = category.data?.batches.find((item) => item.isOpen && !item.pastCutoff) ?? null;
   useEffect(() => {
     if (pad < 3 && (family === 'TOP_3' || family === 'PERM_3')) {
@@ -49,10 +47,7 @@ export default function CatalogDeskPage() {
     }
   }, [pad, family]);
 
-  const liveTotal = useMemo(
-    () => livePointsTotal(lines, digits.length === length && activeStake ? activeStake : null),
-    [lines, digits.length, length, activeStake],
-  );
+  const liveTotal = useMemo(() => livePointsTotal(lines, null), [lines]);
 
   const order = useMutation({
     mutationFn: async () => {
@@ -72,7 +67,6 @@ export default function CatalogDeskPage() {
       setReceipt(result);
       setLines([]);
       setDigits('');
-      setOpen(false);
       setFormError(null);
       await queryClient.invalidateQueries({ queryKey: ['balance'] });
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -88,22 +82,31 @@ export default function CatalogDeskPage() {
     setFormError(null);
   }
 
-  function addLine() {
-    if (!category.data || !activeStake) {
-      return;
-    }
-    if (digits.length !== length || length > category.data.pad) {
+  function readyNumber(): boolean {
+    if (!category.data || digits.length !== length || length > category.data.pad) {
       setFormError(copy.selection.badNumber);
-      return;
+      return false;
     }
     setFormError(null);
-    setLines((current) => {
-      const previous = current.find((line) => line.type === selectionType && line.number === digits);
-      const amount = previous ? new Decimal(previous.amount).plus(activeStake).toFixed(4) : activeStake;
-      const rest = current.filter((line) => !(line.type === selectionType && line.number === digits));
-      return [...rest, { type: selectionType, number: digits, amount }];
-    });
-    setDigits('');
+    return true;
+  }
+
+  function applyAmount(amount: string) {
+    if (!readyNumber()) {
+      return;
+    }
+    setLines((current) => addStake(current, selectionType, digits, amount));
+  }
+
+  function applyReverse(amount: string) {
+    if (!readyNumber()) {
+      return;
+    }
+    if (digits.length < 2) {
+      setFormError(copy.selection.reverseDigits);
+      return;
+    }
+    setLines((current) => addPermutations(current, selectionType, digits, amount));
   }
 
   if (category.isLoading) {
@@ -128,7 +131,7 @@ export default function CatalogDeskPage() {
       {!batch ? <StatePanel title={copy.desk.noBatch} /> : null}
 
       {batch ? (
-        <Card className="p-4">
+        <Card className="space-y-4 p-4">
           <p className="text-xs text-ink/55">
             {copy.desk.batch} {batch.label} · {copy.desk.cutoff}{' '}
             {new Intl.DateTimeFormat('th-TH', {
@@ -137,20 +140,7 @@ export default function CatalogDeskPage() {
               timeStyle: 'short',
             }).format(new Date(batch.cutoffAt))}
           </p>
-          <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-ink/70">{copy.selection.liveTotal}</span>
-            <span className="font-mono text-lg font-semibold">{formatPoints(liveTotal)}</span>
-          </div>
-          <Button className="mt-4 w-full" onClick={() => setOpen(true)}>
-            {copy.catalog.pick}
-          </Button>
-        </Card>
-      ) : null}
-
-      <Dialog open={open && Boolean(batch)} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogTitle>{copy.selection.title}</DialogTitle>
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <ModeButton label={copy.selection.exact3} active={family === 'TOP_3'} disabled={pad < 3} onClick={() => chooseFamily('TOP_3')} />
             <ModeButton label={copy.selection.perm} active={family === 'PERM_3'} disabled={pad < 3} onClick={() => chooseFamily('PERM_3')} />
             <ModeButton label={copy.selection.top2} active={family === 'TOP_2'} disabled={pad < 2} onClick={() => chooseFamily('TOP_2')} />
@@ -158,42 +148,18 @@ export default function CatalogDeskPage() {
             <ModeButton label={copy.selection.float} active={family === 'FLOAT'} disabled={pad < 1} onClick={() => chooseFamily('FLOAT')} />
           </div>
           {family === 'FLOAT' ? (
-            <div className="mt-2 flex gap-2">
+            <div className="flex gap-2">
               <ModeButton label={copy.selection.floatTop} active={floatType === 'SINGLE_TOP'} onClick={() => setFloatType('SINGLE_TOP')} />
               <ModeButton label={copy.selection.floatBottom} active={floatType === 'SINGLE_BOTTOM'} onClick={() => setFloatType('SINGLE_BOTTOM')} />
               <ModeButton label={copy.selection.floatMix} active={floatType === 'RUNNING_MIX'} onClick={() => setFloatType('RUNNING_MIX')} />
             </div>
           ) : null}
-          <div className="mt-4">
-            <DigitMatrix length={length} value={digits} onChange={setDigits} />
-          </div>
-          <p className="mt-4 text-sm font-medium">{copy.desk.stake}</p>
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-            {PRESET_STAKES.map((amount) => (
-              <button
-                key={amount}
-                type="button"
-                onClick={() => setStake(amount)}
-                className={cn(
-                  'shrink-0 rounded-full border px-3 py-2 font-mono text-sm text-white',
-                  activeStake === amount ? 'border-[#dc2626] bg-[#dc2626]' : 'border-line bg-[#0a0a0a]',
-                )}
-              >
-                {formatPoints(amount)}
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-sm text-ink/70">{copy.selection.liveTotal}</span>
-            <span className="font-mono text-lg font-semibold">{formatPoints(liveTotal)}</span>
-          </div>
-          <Button type="button" variant="outline" className="mt-3 w-full" onClick={addLine}>
-            {copy.selection.add}
-          </Button>
-          <ul className="mt-4 space-y-2">
+          <DigitMatrix length={length} value={digits} onChange={setDigits} />
+          <StakePad disabled={!batch} onAmount={applyAmount} onReverse={applyReverse} />
+          <ul className="space-y-2">
             {lines.length === 0 ? <li className="text-sm text-ink/60">{copy.selection.empty}</li> : null}
             {lines.map((line) => (
-              <li key={`${line.type}:${line.number}`} className="flex justify-between gap-3 text-sm">
+              <li key={`${line.type}:${line.number}`} className="flex min-h-12 items-center justify-between gap-3 text-base">
                 <span>
                   {modeLabel(line.type)} {line.number}
                 </span>
@@ -201,16 +167,16 @@ export default function CatalogDeskPage() {
               </li>
             ))}
           </ul>
-          <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center justify-between">
             <span className="text-sm text-ink/70">{copy.selection.liveTotal}</span>
             <span className="font-mono text-lg font-semibold">{formatPoints(liveTotal)}</span>
           </div>
-          {formError ? <p className="mt-3 rounded-2xl bg-danger-soft px-3 py-2 text-sm text-danger">{formError}</p> : null}
-          <Button className="mt-4 w-full" disabled={!batch || lines.length === 0 || order.isPending} onClick={() => order.mutate()}>
+          {formError ? <p className="rounded-2xl bg-danger-soft px-3 py-2 text-sm text-danger">{formError}</p> : null}
+          <Button className="h-14 w-full text-base" disabled={!batch || lines.length === 0 || order.isPending} onClick={() => order.mutate()}>
             {order.isPending ? copy.desk.submitting : copy.desk.submit}
           </Button>
-        </DialogContent>
-      </Dialog>
+        </Card>
+      ) : null}
 
       <Dialog open={Boolean(receipt)} onOpenChange={(next) => !next && setReceipt(null)}>
         <DialogContent>
@@ -281,7 +247,7 @@ function ModeButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'rounded-2xl border px-3 py-3 text-sm text-white disabled:opacity-40',
+        'min-h-12 rounded-2xl border px-3 py-3 text-base text-white disabled:opacity-40',
         active ? 'border-[#dc2626] bg-[#dc2626]' : 'border-line bg-[#0a0a0a]',
       )}
     >

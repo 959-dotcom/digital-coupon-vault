@@ -66,6 +66,12 @@ test('orders reject a number whose length does not match the selection type', ()
   const kept = canonicalizeItems({ pad: 2, stakeAmounts: stakes }, [{ type: 'BOTTOM_2', number: '45', amount: '20.0000' }]);
   assert.equal(kept.items[0]?.amount, '20.0000');
   assert.equal(kept.total.toFixed(4), '20.0000');
+  const free = canonicalizeItems({ pad: 3, stakeAmounts: stakes }, [{ type: 'TOP_3', number: '123', amount: '123.5000' }]);
+  assert.equal(free.items[0]?.amount, '123.5000');
+  assert.throws(
+    () => canonicalizeItems({ pad: 3, stakeAmounts: stakes }, [{ type: 'TOP_3', number: '123', amount: '10.0010' }]),
+    /INVALID_AMOUNT/,
+  );
 });
 
 test('national and lao schedules use the server clock in Asia/Bangkok', () => {

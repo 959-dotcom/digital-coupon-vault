@@ -32,7 +32,8 @@ export type AuditInput = {
     | 'DEPOSIT_MATCH'
     | 'DEPOSIT_REVIEW'
     | 'DEPOSIT_DECISION'
-    | 'PAYMENT_SETTINGS';
+    | 'PAYMENT_SETTINGS'
+    | 'TELEGRAM_NOTIFY';
   target: string;
   detail: Prisma.InputJsonValue;
   ip?: string | null;

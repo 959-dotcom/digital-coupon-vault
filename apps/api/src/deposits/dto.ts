@@ -11,7 +11,7 @@ export class DepositIdDto {
 }
 
 export class MatchDepositDto {
-  @Matches(/^\d{1,11}\.\d{4}$/)
+  @Matches(/^\d{1,11}(\.\d{1,4})?$/)
   amount!: string;
 
   @IsString()

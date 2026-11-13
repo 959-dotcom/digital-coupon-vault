@@ -23,9 +23,19 @@ test('a staff account without balance permission is denied', () => {
 
 test('a closed product blocks that line and not a sibling line', () => {
   const flags = [{ userId: 'master', isActive: false }];
-  assert.equal(closedByAncestor(flags, ['admin', 'master', 'member']), true);
-  assert.equal(closedByAncestor(flags, ['admin', 'other']), false);
-  assert.equal(closedByAncestor([{ userId: 'master', isActive: true }], ['admin', 'master']), false);
+  assert.equal(closedByAncestor(flags, ['member', 'master', 'admin']), true);
+  assert.equal(closedByAncestor(flags, ['other', 'admin']), false);
+  assert.equal(closedByAncestor([{ userId: 'master', isActive: true }], ['master', 'admin']), false);
+});
+
+test('an admin close covers every line until that line reopens itself', () => {
+  const flags = [
+    { userId: 'admin', isActive: false },
+    { userId: 'master', isActive: true },
+  ];
+  assert.equal(closedByAncestor([{ userId: 'admin', isActive: false }], ['member', 'master', 'admin']), true);
+  assert.equal(closedByAncestor(flags, ['member', 'master', 'admin']), false);
+  assert.equal(closedByAncestor(flags, ['other', 'admin']), true);
 });
 
 test('a downline report hides the viewer row and a sibling line', () => {

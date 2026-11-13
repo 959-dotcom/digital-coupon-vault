@@ -23,7 +23,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (ready && user) {
-      router.replace('/home');
+      router.replace('/catalog');
     }
   }, [ready, user, router]);
 
@@ -31,7 +31,7 @@ export default function LoginPage() {
     mutationFn: () => api.login({ email: email.trim(), password }),
     onSuccess: (result) => {
       setSession(result.accessToken, result.user);
-      router.replace('/home');
+      router.replace('/catalog');
     },
     onError: (error: Error) => {
       setFormError(error instanceof ApiError ? error.message : copy.errors.generic);
@@ -52,8 +52,8 @@ export default function LoginPage() {
         <h2 className="text-lg font-semibold">{copy.login.title}</h2>
         <form className="mt-4 space-y-4" onSubmit={onSubmit}>
           <div className="space-y-1.5">
-            <Label htmlFor="email">{copy.login.email} / {copy.register.phone}</Label>
-            <Input id="email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            <Label htmlFor="email">{copy.login.email}</Label>
+            <Input id="email" type="text" inputMode="text" autoComplete="username" className="h-14 text-lg" value={email} onChange={(event) => setEmail(event.target.value)} required />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">{copy.login.password}</Label>
@@ -61,6 +61,7 @@ export default function LoginPage() {
               id="password"
               type="password"
               autoComplete="current-password"
+              className="h-14 text-lg"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required

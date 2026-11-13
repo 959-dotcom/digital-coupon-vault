@@ -1,5 +1,5 @@
 import { DomainError } from '../common/domain-error.js';
-import { Decimal, formatMoney } from '../money/decimal.js';
+import { Decimal } from '../money/decimal.js';
 
 const PROMPTPAY_AID = 'A000000677010111';
 
@@ -15,8 +15,8 @@ export function parseWholeBaht(input: string): Decimal {
 }
 
 export function allocateSatang(pendingSatangs: readonly number[]): number {
-  const used = new Set(pendingSatangs.filter((value) => value >= 1 && value <= 99));
-  for (let satang = 1; satang <= 99; satang += 1) {
+  const used = new Set(pendingSatangs.filter((value) => value >= 0 && value <= 99));
+  for (let satang = 0; satang <= 99; satang += 1) {
     if (!used.has(satang)) {
       return satang;
     }
@@ -25,10 +25,22 @@ export function allocateSatang(pendingSatangs: readonly number[]): number {
 }
 
 export function payableTotal(baht: Decimal, satang: number): Decimal {
-  if (satang < 1 || satang > 99) {
+  if (satang < 0 || satang > 99) {
     throw new DomainError('INVALID_AMOUNT');
   }
   return baht.plus(new Decimal(satang).div(100));
+}
+
+export function parseMatchAmount(input: string): Decimal {
+  const trimmed = input.trim();
+  if (!/^\d{1,11}(\.\d{1,4})?$/.test(trimmed)) {
+    throw new DomainError('INVALID_AMOUNT');
+  }
+  const parsed = new Decimal(trimmed);
+  if (parsed.lte(0) || parsed.gt(1_000_000)) {
+    throw new DomainError('INVALID_AMOUNT');
+  }
+  return parsed.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 }
 
 export function normalizePromptPayTarget(input: string): string | null {
@@ -64,7 +76,7 @@ export function buildPromptPayPayload(target: string | null | undefined, amount:
 }
 
 export function formatExactAmount(amount: Decimal): string {
-  return formatMoney(amount);
+  return amount.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(2);
 }
 
 function tlv(id: string, value: string): string {

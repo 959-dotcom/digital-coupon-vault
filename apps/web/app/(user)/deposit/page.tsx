@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError, api, type DepositView } from '@/lib/api';
 import { copy } from '@/lib/copy';
+import { formatPoints } from '@/lib/money';
 
 const shortcuts = ['100', '300', '500', '1000', '5000'];
 
@@ -87,10 +88,10 @@ export default function DepositPage() {
         <Card className="space-y-3 p-4 text-center">
           <img src={current.qrDataUrl} alt={copy.deposit.title} className="mx-auto w-full max-w-xs" />
           <p className="text-sm text-white/70">{copy.deposit.exact}</p>
-          <label className="block text-left text-sm">
-            {copy.deposit.slip}
+          <label className="flex min-h-14 cursor-pointer items-center justify-center rounded-2xl bg-[#dc2626] px-4 text-base font-semibold text-white">
+            {slip.isPending ? copy.deposit.upload : copy.deposit.slip}
             <input
-              className="mt-2 block w-full text-sm"
+              className="sr-only"
               type="file"
               accept="image/*,.pdf"
               onChange={(event) => {
@@ -108,7 +109,7 @@ export default function DepositPage() {
       <div className="space-y-2">
         {deposits.data?.map((row) => (
           <button key={row.id} type="button" className="w-full rounded-2xl border border-white/10 px-4 py-3 text-left" onClick={() => setActiveId(row.id)}>
-            <span className="font-mono">{row.amount}</span>
+            <span className="font-mono">{formatPoints(row.amount)}</span>
             <span className="ml-2 text-white/60">{statusText(row.status)}</span>
           </button>
         ))}
@@ -120,7 +121,7 @@ export default function DepositPage() {
 function DepositCard({ row }: { row: DepositView }) {
   return (
     <Card className="space-y-1 p-4">
-      <p className="font-mono text-2xl">{row.amount}</p>
+      <p className="font-mono text-3xl">{formatPoints(row.amount)}</p>
       <p>{statusText(row.status)}</p>
       <p className="text-xs text-white/50">{row.qrRef}</p>
     </Card>

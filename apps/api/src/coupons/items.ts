@@ -21,7 +21,7 @@ export function canonicalizeItems(rules: ItemRules, inputs: readonly OrderItemIn
   if (inputs.length === 0 || inputs.length > 100) {
     throw new DomainError('INVALID_ITEM');
   }
-  const stakes = readStakes(rules.stakeAmounts);
+  readStakes(rules.stakeAmounts);
   const merged = new Map<string, { type: SelectionType; number: string; amount: Decimal }>();
 
   for (const input of inputs) {
@@ -32,13 +32,13 @@ export function canonicalizeItems(rules: ItemRules, inputs: readonly OrderItemIn
       throw new DomainError('INVALID_ITEM');
     }
     const amount = parseExactMoney(input.amount);
-    if (!isStakeMultiple(amount, stakes)) {
+    if (!isBahtAmount(amount)) {
       throw new DomainError('INVALID_AMOUNT');
     }
     const key = `${input.type}:${input.number}`;
     const current = merged.get(key);
     const nextAmount = current ? current.amount.plus(amount) : amount;
-    if (!isStakeMultiple(nextAmount, stakes)) {
+    if (!isBahtAmount(nextAmount)) {
       throw new DomainError('INVALID_AMOUNT');
     }
     merged.set(key, { type: input.type, number: input.number, amount: nextAmount });
@@ -59,11 +59,11 @@ export function canonicalizeItems(rules: ItemRules, inputs: readonly OrderItemIn
   return { items, total };
 }
 
-function isStakeMultiple(amount: Decimal, stakes: readonly Decimal[]): boolean {
-  return stakes.some((stake) => {
-    const quantity = amount.div(stake);
-    return quantity.isInteger() && quantity.gte(1) && quantity.lte(9999);
-  });
+function isBahtAmount(amount: Decimal): boolean {
+  if (amount.lt(1) || amount.gt(1_000_000)) {
+    return false;
+  }
+  return amount.mul(100).isInteger();
 }
 
 function readStakes(value: unknown): Decimal[] {

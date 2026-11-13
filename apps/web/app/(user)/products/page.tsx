@@ -40,14 +40,14 @@ export default function ProductsPage() {
             <p className="text-xs text-white/50">{product.isActive ? copy.products.open : copy.products.closed}</p>
           </div>
           <Button
-            size="sm"
-            variant={product.ownActive ? 'outline' : 'default'}
+            className="h-12 min-w-24"
+            variant={product.isActive ? 'outline' : 'default'}
             onClick={() => {
               setFormError(null);
-              toggle.mutate({ code: product.code, isActive: !product.ownActive });
+              toggle.mutate({ code: product.code, isActive: !product.isActive });
             }}
           >
-            {product.ownActive ? copy.products.closed : copy.products.open}
+            {product.isActive ? copy.products.closed : copy.products.open}
           </Button>
         </Card>
       ))}

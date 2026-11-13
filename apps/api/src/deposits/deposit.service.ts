@@ -5,12 +5,12 @@ import { AccessService } from '../access/access.service.js';
 import { AuditLogService } from '../audit/audit-log.service.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { DomainError } from '../common/domain-error.js';
-import { Decimal, formatMoney, moneyFromDatabase, parseExactMoney } from '../money/decimal.js';
+import { Decimal, formatMoney, moneyFromDatabase } from '../money/decimal.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { buildDepositLedger } from '../money/ledger.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { settleLocked, type ReviewStatus } from './deposit-decision.js';
-import { allocateSatang, buildPromptPayPayload, normalizePromptPayTarget, parseWholeBaht, payableTotal } from './promptpay.js';
+import { allocateSatang, buildPromptPayPayload, formatExactAmount, normalizePromptPayTarget, parseMatchAmount, parseWholeBaht, payableTotal } from './promptpay.js';
 
 const DEPOSIT_TTL_MS = 15 * 60 * 1000;
 const PUBLIC_API = process.env.API_PUBLIC_URL ?? 'https://api.db357.com';
@@ -105,7 +105,7 @@ export class DepositService {
       },
       ip,
     });
-    const webhookSet = await this.ensureWebhook(saved);
+    const webhookSet = await this.ensureWebhook(saved, actor.userId);
     return { ...(await this.adminView(actor)), webhookSet };
   }
 
@@ -220,24 +220,24 @@ export class DepositService {
       detail: { qrRef: updated.qrRef, amount: formatMoney(moneyFromDatabase(updated.amount)) },
       ip,
     });
-    await this.notifyReview(updated.id);
+    await this.notifyReview(updated.id, actor.userId);
     return this.present(updated);
   }
 
   async match(actor: AuthUser, amountInput: string, bankRef: string, ip?: string) {
     await this.access.denyStaff(actor);
     this.assertAdmin(actor);
-    const amount = parseExactMoney(amountInput);
+    const amount = parseMatchAmount(amountInput);
     const reference = bankRef.trim();
     const duplicate = await this.prisma.deposit.findUnique({ where: { bankRef: reference }, select: { id: true } });
     if (duplicate) {
       throw new DomainError('SLIP_REUSED');
     }
     const paid = await this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<Array<{ id: string; status: string; userId: string }>>`
-        SELECT id, status::text AS status, "userId"
+      const rows = await tx.$queryRaw<Array<{ id: string; status: string; userId: string; amount: string }>>`
+        SELECT id, status::text AS status, "userId", amount::text AS amount
         FROM "Deposit"
-        WHERE amount = ${formatMoney(amount)}::numeric
+        WHERE round(amount, 2) = ${formatExactAmount(amount)}::numeric
           AND status IN ('PENDING', 'REVIEW')
           AND "expiresAt" > NOW()
         FOR UPDATE
@@ -252,7 +252,7 @@ export class DepositService {
       if (!row) {
         throw new DomainError('DEPOSIT_UNMATCHED');
       }
-      await this.credit(tx, row.id, row.userId, amount);
+      await this.credit(tx, row.id, row.userId, moneyFromDatabase(row.amount));
       return tx.deposit.update({
         where: { id: row.id },
         data: { status: 'PAID', bankRef: reference, paidAt: new Date(), decidedBy: actor.userId },
@@ -346,7 +346,7 @@ export class DepositService {
     });
   }
 
-  private async notifyReview(id: string) {
+  private async notifyReview(id: string, actorId: string) {
     const settings = await this.settings();
     if (!settings.telegramBotToken || !settings.telegramChatId) {
       return;
@@ -360,7 +360,7 @@ export class DepositService {
     }
     const text = [
       `ชื่อ: ${row.user.displayName}`,
-      `ยอด: ${formatMoney(moneyFromDatabase(row.amount))}`,
+      `ยอด: ${formatExactAmount(moneyFromDatabase(row.amount))}`,
       `เวลา: ${bangkok(row.createdAt)}`,
       `อ้างอิง: ${row.qrRef}`,
     ].join('\n');
@@ -370,7 +370,7 @@ export class DepositService {
         { text: 'ปฏิเสธ', callback_data: `deposit:reject:${row.id}` },
       ]],
     };
-    await telegramCall(settings.telegramBotToken, row.slipBytes ? 'sendPhoto' : 'sendMessage', (body) => {
+    const result = await telegramCall(settings.telegramBotToken, row.slipBytes ? 'sendPhoto' : 'sendMessage', (body) => {
       if (row.slipBytes) {
         body.set('chat_id', settings.telegramChatId ?? '');
         body.set('caption', text);
@@ -382,16 +382,31 @@ export class DepositService {
       body.set('text', text);
       body.set('reply_markup', JSON.stringify(keyboard));
     });
+    await this.recordTelegramFailure(actorId, id, result);
   }
 
-  private async ensureWebhook(row: PaymentRow): Promise<boolean> {
+  private async ensureWebhook(row: PaymentRow, actorId: string): Promise<boolean> {
     if (!row.telegramBotToken || !row.telegramChatId || !row.telegramWebhookSecret) {
       return false;
     }
-    return telegramJson(row.telegramBotToken, 'setWebhook', {
+    const result = await telegramJson(row.telegramBotToken, 'setWebhook', {
       url: `${PUBLIC_API}/telegram/webhook`,
       secret_token: row.telegramWebhookSecret,
       allowed_updates: ['callback_query'],
+    });
+    await this.recordTelegramFailure(actorId, 'webhook', result);
+    return result.ok;
+  }
+
+  private async recordTelegramFailure(actorId: string, target: string, result: TelegramResult) {
+    if (result.status !== 400 && result.status !== 404) {
+      return;
+    }
+    await this.audit.append(this.prisma, {
+      actorId,
+      action: 'TELEGRAM_NOTIFY',
+      target,
+      detail: { status: result.status, description: result.description },
     });
   }
 
@@ -433,8 +448,8 @@ export class DepositService {
   private present(row: DepositView) {
     return {
       id: row.id,
-      amount: formatMoney(moneyFromDatabase(row.amount)),
-      requested: formatMoney(moneyFromDatabase(row.requested)),
+      amount: formatExactAmount(moneyFromDatabase(row.amount)),
+      requested: formatExactAmount(moneyFromDatabase(row.requested)),
       satang: row.satang,
       qrRef: row.qrRef,
       status: row.status,
@@ -504,25 +519,38 @@ function safeEqual(left: string, right: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-async function telegramJson(token: string, method: string, body: unknown): Promise<boolean> {
+type TelegramResult = { ok: boolean; status: number; description: string };
+
+async function telegramJson(token: string, method: string, body: unknown): Promise<TelegramResult> {
   try {
     const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return response.ok;
+    return readTelegram(response);
   } catch {
-    return false;
+    return { ok: false, status: 0, description: 'network' };
   }
 }
 
-async function telegramCall(token: string, method: string, fill: (body: FormData) => void): Promise<void> {
+async function telegramCall(token: string, method: string, fill: (body: FormData) => void): Promise<TelegramResult> {
   try {
     const body = new FormData();
     fill(body);
-    await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', body });
+    const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', body });
+    return readTelegram(response);
   } catch {
-    return;
+    return { ok: false, status: 0, description: 'network' };
   }
+}
+
+async function readTelegram(response: Response): Promise<TelegramResult> {
+  const payload = (await response.json().catch(() => null)) as { description?: unknown } | null;
+  const description = typeof payload?.description === 'string' ? payload.description : '';
+  return { ok: response.ok, status: response.status, description: scrubTelegram(description) };
+}
+
+function scrubTelegram(description: string): string {
+  return description.replace(/\d{6,}:[A-Za-z0-9_-]+/g, '').slice(0, 240);
 }

@@ -21,7 +21,7 @@ export class ProductsService {
       throw new DomainError('USER_INACTIVE');
     }
     const ancestors = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM "User" WHERE ${viewer.path}::ltree <@ path
+      SELECT id FROM "User" WHERE ${viewer.path}::ltree <@ path ORDER BY nlevel(path) DESC
     `;
     const ids = ancestors.map((row) => row.id);
     const flags = ids.length
@@ -68,7 +68,7 @@ export class ProductsService {
       throw new DomainError('USER_INACTIVE');
     }
     const ancestors = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM "User" WHERE ${buyer.path}::ltree <@ path
+      SELECT id FROM "User" WHERE ${buyer.path}::ltree <@ path ORDER BY nlevel(path) DESC
     `;
     const ids = ancestors.map((row) => row.id);
     const flags = await this.prisma.lineProduct.findMany({

@@ -91,8 +91,14 @@ export function productName(code: ProductCode): string {
 
 export function closedByAncestor(
   flags: readonly { userId: string; isActive: boolean }[],
-  ancestorIds: readonly string[],
+  ancestorIdsNearestFirst: readonly string[],
 ): boolean {
-  const closed = new Set(flags.filter((flag) => !flag.isActive).map((flag) => flag.userId));
-  return ancestorIds.some((id) => closed.has(id));
+  const byUser = new Map(flags.map((flag) => [flag.userId, flag.isActive]));
+  for (const id of ancestorIdsNearestFirst) {
+    const active = byUser.get(id);
+    if (active !== undefined) {
+      return !active;
+    }
+  }
+  return false;
 }
