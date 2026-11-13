@@ -96,6 +96,7 @@ export default function CatalogDeskPage() {
       return;
     }
     setLines((current) => addStake(current, selectionType, digits, amount));
+    setDigits('');
   }
 
   function applyReverse(amount: string) {
@@ -107,6 +108,7 @@ export default function CatalogDeskPage() {
       return;
     }
     setLines((current) => addPermutations(current, selectionType, digits, amount));
+    setDigits('');
   }
 
   if (category.isLoading) {
