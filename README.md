@@ -32,7 +32,7 @@ npm run dev:web
 - API: `http://127.0.0.1:4000`
 - Web: `http://localhost:3000`
 
-The `local` profile starts Postgres 16 (with `ltree`) and Redis. Production is Vercel plus Supabase, described in `DEPLOY.md`. Redis is optional and is only for local Docker.
+The `local` profile starts Postgres 16 (with `ltree`) and Redis. Production is Vercel plus the Hub Supabase project, schema `coupon`, described in `DEPLOY.md`. Paste `apps/api/prisma/hub/coupon_schema.sql` once in the Hub SQL editor, then point `DATABASE_URL` at that project. Redis is optional and is only for local Docker.
 
 Seed accounts (password is `SEED_PASSWORD`):
 

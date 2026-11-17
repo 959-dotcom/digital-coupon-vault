@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { COUPON_SCHEMA, HUB_PROJECT_REF, isHubProjectDatabaseUrl } from './coupon-schema.js';
 
 const DIRECT_HOST = /^db\.([a-z0-9]{20})\.supabase\.co$/i;
 const POOLER_HOST = /^aws-\d+-ap-southeast-1\.pooler\.supabase\.com$/i;
@@ -52,8 +53,10 @@ export function describeDatabaseUrl(databaseUrl: string): {
   if (!parts) {
     return { userEquals: null, port: null, pgbouncer: null };
   }
+  const hub = isHubProjectDatabaseUrl(databaseUrl);
+  const hubUser = parts.user === `postgres.${HUB_PROJECT_REF}` || (DIRECT_HOST.test(parts.host) && parts.user === 'postgres');
   return {
-    userEquals: parts.user === EXPECTED_POOLER_USER,
+    userEquals: hub ? hubUser : parts.user === EXPECTED_POOLER_USER,
     port: parts.port || null,
     pgbouncer: parts.params.get('pgbouncer'),
   };
@@ -67,7 +70,21 @@ function formatConnection(parts: Parts): string {
   return `postgresql://${auth}@${parts.host}${port}/${parts.database}${query ? `?${query}` : ''}`;
 }
 
+function withCouponSchema(databaseUrl: string): string {
+  const parts = splitConnection(databaseUrl);
+  if (!parts || parts.params.get('schema') === COUPON_SCHEMA) {
+    return databaseUrl;
+  }
+  parts.params.set('schema', COUPON_SCHEMA);
+  return formatConnection(parts);
+}
+
 export function poolerCandidates(databaseUrl: string): string[] {
+  const hub = isHubProjectDatabaseUrl(databaseUrl);
+  const finish = (urls: string[]): string[] => {
+    const secured = urls.map(useLibpqSsl);
+    return hub ? secured.map(withCouponSchema) : secured;
+  };
   const parts = splitConnection(databaseUrl);
   if (!parts) {
     return [databaseUrl];
@@ -76,27 +93,29 @@ export function poolerCandidates(databaseUrl: string): string[] {
   if (direct) {
     const ref = direct[1].toLowerCase();
     if (parts.user !== 'postgres' && parts.user !== `postgres.${ref}`) {
-      return [databaseUrl].map(useLibpqSsl);
+      return finish([databaseUrl]);
     }
-    return POOLER_HOSTS.map((host) => {
-      const params = new URLSearchParams(parts.params);
-      params.delete('pgbouncer');
-      if (!params.has('sslmode')) {
-        params.set('sslmode', 'require');
-      }
-      return formatConnection({
-        ...parts,
-        user: `postgres.${ref}`,
-        host,
-        port: '5432',
-        params,
-      });
-    }).map(useLibpqSsl);
+    return finish(
+      POOLER_HOSTS.map((host) => {
+        const params = new URLSearchParams(parts.params);
+        params.delete('pgbouncer');
+        if (!params.has('sslmode')) {
+          params.set('sslmode', 'require');
+        }
+        return formatConnection({
+          ...parts,
+          user: `postgres.${ref}`,
+          host,
+          port: '5432',
+          params,
+        });
+      }),
+    );
   }
-  if (POOLER_HOST.test(parts.host) && parts.user !== EXPECTED_POOLER_USER) {
-    return [formatConnection({ ...parts, user: EXPECTED_POOLER_USER })].map(useLibpqSsl);
+  if (POOLER_HOST.test(parts.host) && parts.user !== EXPECTED_POOLER_USER && !hub) {
+    return finish([formatConnection({ ...parts, user: EXPECTED_POOLER_USER })]);
   }
-  return [databaseUrl].map(useLibpqSsl);
+  return finish([databaseUrl]);
 }
 
 // pg 8 treats sslmode=require as verify-full. Supabase's pooler chain is not a

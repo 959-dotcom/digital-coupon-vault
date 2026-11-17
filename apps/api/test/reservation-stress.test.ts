@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { config } from 'dotenv';
 import { Redis } from 'ioredis';
 import { DomainError } from '../src/common/domain-error.js';
 import { assertCutoffOpen, lockUserAndAssertBalance } from '../src/coupons/point-reservation.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { Decimal, toMinorUnits } from '../src/money/decimal.js';
+import { createPrismaAdapter } from '../src/prisma/prisma-adapter.js';
 import { WalletService } from '../src/redis/wallet.service.js';
 import { RedisService } from '../src/redis/redis.service.js';
 
@@ -30,7 +30,7 @@ test('concurrent reservations cannot overspend one balance', { timeout: 30_000 }
   assert.doesNotThrow(() => assertCutoffOpen(new Date(), future));
 
   const redis = new Redis(redisUrl as string, { maxRetriesPerRequest: 1, enableReadyCheck: true });
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
+  const prisma = new PrismaClient({ adapter: createPrismaAdapter(databaseUrl as string) });
   const userId = randomUUID();
   const walletKey = `wallet:points:${userId}`;
   const opening = new Decimal('10.0000');

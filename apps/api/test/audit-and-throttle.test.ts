@@ -8,6 +8,7 @@ import { config } from 'dotenv';
 import { Redis } from 'ioredis';
 import pg from 'pg';
 import { AllExceptionsFilter } from '../src/common/all-exceptions.filter.js';
+import { COUPON_SEARCH_PATH, isHubProjectDatabaseUrl } from '../src/prisma/coupon-schema.js';
 import { RedisThrottlerStorage, WITHDRAWAL_LIMIT, WITHDRAWAL_TTL_MS } from '../src/redis/throttler-storage.js';
 
 config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
@@ -27,6 +28,9 @@ test('an audit row cannot be changed', async () => {
   assert.equal(typeof databaseUrl, 'string');
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
+  if (isHubProjectDatabaseUrl(databaseUrl)) {
+    await client.query(`SET search_path TO ${COUPON_SEARCH_PATH}`);
+  }
   const id = randomUUID();
   try {
     await client.query(
