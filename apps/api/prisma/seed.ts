@@ -1,7 +1,6 @@
 import { config as loadEnv } from 'dotenv';
 import { resolve } from 'node:path';
 import bcrypt from 'bcrypt';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { Redis } from 'ioredis';
 import { CATEGORY_SEEDS, DEFAULT_STAKES } from '../src/coupons/category-catalog.js';
 import { Prisma, PrismaClient } from '../src/generated/prisma/client.js';
@@ -9,6 +8,7 @@ import { nextSession } from '../src/coupons/schedule.js';
 import { formatCalendarDate } from '../src/cutoff/cutoff.js';
 import { formatMoney, parseExactMoney, toMinorUnits } from '../src/money/decimal.js';
 import { buildFundingLedger } from '../src/money/ledger.js';
+import { createPrismaAdapter } from '../src/prisma/prisma-adapter.js';
 
 loadEnv({ path: resolve(process.cwd(), '.env') });
 loadEnv({ path: resolve(process.cwd(), '../../.env') });
@@ -20,7 +20,7 @@ if (!databaseUrl || !redisUrl || !seedPassword || seedPassword.length < 8) {
   throw new Error('DATABASE_URL, REDIS_URL, and SEED_PASSWORD are required');
 }
 
-const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
+const prisma = new PrismaClient({ adapter: createPrismaAdapter(databaseUrl) });
 const redis = new Redis(redisUrl);
 
 async function main(): Promise<void> {

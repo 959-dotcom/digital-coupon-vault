@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { config } from 'dotenv';
 import { Redis } from 'ioredis';
 import type { AuditLogService } from '../src/audit/audit-log.service.js';
@@ -13,6 +12,7 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
 import { WithdrawalService } from '../src/ledger/withdrawal.service.js';
 import { Decimal } from '../src/money/decimal.js';
 import type { PrismaService } from '../src/prisma/prisma.service.js';
+import { createPrismaAdapter } from '../src/prisma/prisma-adapter.js';
 import { RedisService } from '../src/redis/redis.service.js';
 import { WalletService } from '../src/redis/wallet.service.js';
 
@@ -25,7 +25,7 @@ test('an approve moves the point balance once', { timeout: 30_000 }, async () =>
   assert.equal(typeof redisUrl, 'string');
 
   const redis = new Redis(redisUrl as string, { maxRetriesPerRequest: 1, enableReadyCheck: true });
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
+  const prisma = new PrismaClient({ adapter: createPrismaAdapter(databaseUrl as string) });
   const userId = randomUUID();
   const fundingId = randomUUID();
   const walletKey = `wallet:points:${userId}`;
